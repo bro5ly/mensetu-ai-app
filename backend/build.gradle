@@ -9,12 +9,9 @@ version = '0.0.1-SNAPSHOT'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
-
-sourceCompatibility = '17'
-targetCompatibility = '17'
 
 configurations {
     compileOnly {
@@ -42,6 +39,8 @@ dependencies {
     implementation 'org.springframework.ai:spring-ai-ollama-spring-boot-starter'
 
     // Database
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'com.h2database:h2'
 
@@ -65,4 +64,6 @@ dependencyManagement {
 
 tasks.named('test') {
     useJUnitPlatform()
+    maxHeapSize = '512m'
+    maxParallelForks = 1
 }
