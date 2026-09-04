@@ -38,7 +38,7 @@ public class CompanyService {
     }
 
     public CompanyDetail create(CreateCompanyRequest request) {
-        Company company = companyRepository.save(new Company(request.name().trim(), request.overview()));
+        Company company = companyRepository.saveAndFlush(new Company(request.name().trim(), request.overview()));
         return CompanyDetail.from(company, List.of());
     }
 

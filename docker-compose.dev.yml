@@ -38,13 +38,8 @@ services:
       - ollama-data:/root/.ollama
     ports:
       - "11434:11434"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # GPU設定はMacでは不要（CPU動作）
+    # Linux + NVIDIA GPU環境では docker-compose.dev.gpu.yml でオーバーライド可能
 
   faster-whisper:
     image: fedirz/faster-whisper-server:latest-cpu

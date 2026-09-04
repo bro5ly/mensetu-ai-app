@@ -43,15 +43,22 @@ cd mensetu-ai-app
 cp .env.example .env
 ```
 
-3. Docker Composeでサービスを起動
+3. Docker Composeでサービスを起動（PostgreSQL / Ollama / faster-whisper / VOICEVOX）
 ```bash
 docker compose up -d
 ```
+Ollamaはデフォルトでは**CPU動作**。NVIDIA GPUを使う場合は `docker-compose.yml` の `ollama` サービスにあるコメントアウト済みの `deploy:` ブロックを有効化する。
 
-4. Ollamaモデルをダウンロード（初回のみ）
+4. Ollamaモデルをダウンロード（初回のみ / 8Bは実行に約5〜6GBのRAMが必要）
 ```bash
-docker exec -it mensetu-ai-app-ollama-1 ollama pull llama3.1:8b
+docker compose exec ollama ollama pull llama3.1:8b
+# メモリが少ない環境では軽量モデルで代用できる（.env の OLLAMA_MODEL を合わせて変更）
+# docker compose exec ollama ollama pull llama3.2:1b
 ```
+
+5. DBスキーマはバックエンド起動時にFlywayが自動適用する（手動マイグレーション不要）。
+   `.env` の `POSTGRES_PASSWORD` と `application.yml` のデフォルトは揃えてあるため、
+   ホストで直接 `./gradlew bootRun` する場合も追加の環境変数設定は不要。
 
 ### VSCode Dev Containerを使用する場合
 
@@ -76,7 +83,22 @@ npm install
 npm run dev
 ```
 
-フロントエンドは http://localhost:3000 で起動します。
+フロントエンドは http://localhost:3000 で起動します。API/WebSocketの接続先は
+`NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_WS_URL`（未設定なら `http://localhost:8080` / `ws://localhost:8080`）。
+
+### 練習モードの動作確認手順
+
+1. `docker compose up -d` → `docker compose exec ollama ollama pull llama3.1:8b`
+2. `cd backend && ./gradlew bootRun`（Flywayがスキーマを作成）
+3. `cd frontend && npm run dev`
+4. http://localhost:3000 を開く
+5. サイドバーの「＋ 会社を追加」で会社を作成 → 会社の「＋」で質問を追加
+6. 質問をクリックすると練習セッションが開始し、WebSocketで接続される
+7. マイクボタン（音声）または下部のテキスト入力で回答すると、コーチがストリーミングで応答する
+8. 「終了する」で終了し、軽いサマリーが表示される
+
+> VOICEVOX が起動していれば応答が音声再生される。STT（faster-whisper）はマイク入力時のみ使用。
+> どちらかが落ちていてもテキストのやり取りは継続できる。
 
 ## テスト
 
