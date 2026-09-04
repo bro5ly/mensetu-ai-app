@@ -32,7 +32,7 @@ export function Modal({ onClose, children, maxWidth = 340, labelledBy }: Props) 
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
-        className="w-full rounded-[20px] bg-white p-[26px] shadow-[0_20px_50px_-15px_oklch(0.2_0.01_60/0.35)]"
+        className="max-h-[84vh] w-full overflow-y-auto rounded-[20px] bg-white p-[26px] shadow-[0_20px_50px_-15px_oklch(0.2_0.01_60/0.35)]"
         style={{ maxWidth }}
       >
         {children}

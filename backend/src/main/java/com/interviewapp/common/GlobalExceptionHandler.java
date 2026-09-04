@@ -28,6 +28,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, message);
     }
 
+    /** LLM/検索など上流依存が期待どおりの応答を返さなかったとき(例: 企業リサーチの生成失敗)。 */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiError> handleUpstream(IllegalStateException ex) {
+        return build(HttpStatus.BAD_GATEWAY, ex.getMessage());
+    }
+
     private ResponseEntity<ApiError> build(HttpStatus status, String message) {
         return ResponseEntity.status(status)
                 .body(ApiError.of(status.value(), status.getReasonPhrase(), message));

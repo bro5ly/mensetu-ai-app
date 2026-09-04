@@ -15,12 +15,37 @@ public final class CompanyDtos {
 
     public record CreateCompanyRequest(
             @NotBlank @Size(max = 255) String name,
-            String overview) {
+            String overview,
+            /** 企業リサーチウィザードから会社作成と同時に登録する質問(任意)。 */
+            @Size(max = 10) List<@NotBlank String> questions) {
     }
 
     public record UpdateCompanyRequest(
             @Size(max = 255) String name,
             String overview) {
+    }
+
+    /** 企業リサーチ: 会社名から企業概要の下書きを検索・生成する。 */
+    public record ResearchCompanyRequest(
+            @NotBlank @Size(max = 255) String name,
+            /** 再検索時に土台にする現在の下書き(任意)。 */
+            String currentOverview,
+            /** 反映してほしい観点(任意)。 */
+            String feedback) {
+    }
+
+    /** 企業リサーチの結果(未保存)。 */
+    public record ResearchDraft(String overview) {
+    }
+
+    /** 企業概要から面接想定質問を生成するリクエスト。 */
+    public record GenerateQuestionsRequest(
+            @NotBlank @Size(max = 255) String name,
+            @NotBlank String overview) {
+    }
+
+    /** 生成された質問(未保存)。 */
+    public record GeneratedQuestions(List<String> questions) {
     }
 
     /** サイドバー一覧用。 */

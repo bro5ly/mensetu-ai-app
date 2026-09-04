@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
+import { AddCompanyWizard } from "./AddCompanyWizard";
 import type { CompanyDetail, QuestionResponse } from "@/lib/types";
 
 interface Props {
@@ -23,8 +24,7 @@ export function Sidebar({
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  const [showAddCompany, setShowAddCompany] = useState(false);
-  const [companyName, setCompanyName] = useState("");
+  const [showWizard, setShowWizard] = useState(false);
   const [addQuestionFor, setAddQuestionFor] = useState<CompanyDetail | null>(
     null,
   );
@@ -60,16 +60,11 @@ export function Sidebar({
       return next;
     });
 
-  const createCompany = async () => {
-    const name = companyName.trim();
-    if (!name) return;
-    try {
-      const created = await api.createCompany(name);
-      setCompanies((prev) => [...prev, created]);
-      setCompanyName("");
-      setShowAddCompany(false);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "会社を追加できませんでした");
+  const handleCompanyCreated = (created: CompanyDetail) => {
+    setCompanies((prev) => [...prev, created]);
+    setShowWizard(false);
+    if (created.questions[0]) {
+      onSelectQuestion(created.questions[0], created.name);
     }
   };
 
@@ -113,10 +108,7 @@ export function Sidebar({
 
           <button
             type="button"
-            onClick={() => {
-              setCompanyName("");
-              setShowAddCompany(true);
-            }}
+            onClick={() => setShowWizard(true)}
             className="mx-3 mb-4 flex w-[calc(100%-24px)] items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13.5px] font-semibold text-ink transition hover:bg-panel-hover"
           >
             <span className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-[7px] border border-line bg-white text-[15px] text-accent">
@@ -261,59 +253,11 @@ export function Sidebar({
         </div>
       </aside>
 
-      {showAddCompany && (
-        <Modal
-          onClose={() => setShowAddCompany(false)}
-          maxWidth={360}
-          labelledBy="add-company-title"
-        >
-          <div className="mb-4 flex items-center justify-between">
-            <div
-              id="add-company-title"
-              className="text-[16px] font-bold text-ink"
-            >
-              会社を追加
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowAddCompany(false)}
-              className="text-[20px] leading-none text-ink-soft"
-              aria-label="閉じる"
-            >
-              ×
-            </button>
-          </div>
-          <p className="mb-2.5 text-[13px] leading-relaxed text-ink-soft">
-            会社名を入力してください。
-          </p>
-          <input
-            autoFocus
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void createCompany();
-            }}
-            placeholder="例：ABCコーポレーション"
-            className="mb-4 w-full rounded-[10px] border border-line px-3.5 py-2.5 text-sm outline-none focus:border-accent"
-          />
-          <div className="flex gap-2.5">
-            <button
-              type="button"
-              onClick={() => setShowAddCompany(false)}
-              className="flex-1 rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-semibold text-ink"
-            >
-              キャンセル
-            </button>
-            <button
-              type="button"
-              onClick={() => void createCompany()}
-              disabled={!companyName.trim()}
-              className="flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold text-white transition enabled:bg-accent disabled:cursor-not-allowed disabled:bg-panel-muted disabled:text-ink-faint"
-            >
-              追加する
-            </button>
-          </div>
-        </Modal>
+      {showWizard && (
+        <AddCompanyWizard
+          onClose={() => setShowWizard(false)}
+          onCreated={handleCompanyCreated}
+        />
       )}
 
       {addQuestionFor && (

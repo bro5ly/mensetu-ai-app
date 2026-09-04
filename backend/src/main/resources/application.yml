@@ -30,7 +30,9 @@ spring:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:
         options:
-          model: ${OLLAMA_MODEL:llama3.1:8b}
+          # メモリの小さい環境でも起動できる軽量モデルを既定にする。
+          # GPU があれば OLLAMA_MODEL=llama3.1:8b 等に上げる。
+          model: ${OLLAMA_MODEL:llama3.2:3b}
 
 server:
   port: ${SERVER_PORT:8080}

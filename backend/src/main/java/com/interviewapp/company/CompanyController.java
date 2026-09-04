@@ -3,6 +3,10 @@ package com.interviewapp.company;
 import com.interviewapp.company.CompanyDtos.CompanyDetail;
 import com.interviewapp.company.CompanyDtos.CompanySummary;
 import com.interviewapp.company.CompanyDtos.CreateCompanyRequest;
+import com.interviewapp.company.CompanyDtos.GenerateQuestionsRequest;
+import com.interviewapp.company.CompanyDtos.GeneratedQuestions;
+import com.interviewapp.company.CompanyDtos.ResearchCompanyRequest;
+import com.interviewapp.company.CompanyDtos.ResearchDraft;
 import com.interviewapp.company.CompanyDtos.UpdateCompanyRequest;
 import com.interviewapp.question.QuestionDtos.CreateQuestionRequest;
 import com.interviewapp.question.QuestionDtos.QuestionResponse;
@@ -27,10 +31,15 @@ public class CompanyController {
 
     private final CompanyService companyService;
     private final QuestionService questionService;
+    private final CompanyResearchService companyResearchService;
 
-    public CompanyController(CompanyService companyService, QuestionService questionService) {
+    public CompanyController(
+            CompanyService companyService,
+            QuestionService questionService,
+            CompanyResearchService companyResearchService) {
         this.companyService = companyService;
         this.questionService = questionService;
+        this.companyResearchService = companyResearchService;
     }
 
     @GetMapping
@@ -47,6 +56,19 @@ public class CompanyController {
     public ResponseEntity<CompanyDetail> create(@Valid @RequestBody CreateCompanyRequest request) {
         CompanyDetail created = companyService.create(request);
         return ResponseEntity.created(URI.create("/api/companies/" + created.id())).body(created);
+    }
+
+    /** 企業リサーチ: 会社名から企業概要の下書きを生成する(未保存)。 */
+    @PostMapping("/research")
+    public ResearchDraft research(@Valid @RequestBody ResearchCompanyRequest request) {
+        return companyResearchService.research(
+                request.name(), request.currentOverview(), request.feedback());
+    }
+
+    /** 企業リサーチ: 確認済みの企業概要から面接想定質問を生成する(未保存)。 */
+    @PostMapping("/generate-questions")
+    public GeneratedQuestions generateQuestions(@Valid @RequestBody GenerateQuestionsRequest request) {
+        return companyResearchService.generateQuestions(request.name(), request.overview());
     }
 
     @PatchMapping("/{companyId}")

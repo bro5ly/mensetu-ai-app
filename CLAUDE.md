@@ -6,18 +6,20 @@
 
 ## 現在の開発フェーズ(最重要)
 
-**今は「練習モード」を単体で最後まで完成させることだけに集中する。**
+**練習モードに加え、企業リサーチ(会社追加ウィザード)を進める。**
 
-- 対象: 1つの質問に対してAIがコーチとして会話するモードのみ
-- 対象外(今は着手しない): 本番モード、企業リサーチ(Web検索)、サイドバーのカテゴリ表示、レポート/採点機能
-- 本番モードや企業リサーチに関する依頼が来ても、既存の練習モードのコードを壊さないことを優先する。設計に影響する大きな変更が必要な場合は、実装前に必ず確認する
-- 練習モードのMVP(1質問→音声でやり取り→終了ボタンで終了)が通しで動くまで、他機能のコードは書かない
+- 対象:
+  1. 練習モード: 1つの質問に対してAIがコーチとして会話するモード
+  2. 企業リサーチ: 会社名 → Web検索 → AIが企業概要・面接傾向を要約 → 確認・編集 → AIが質問を一括生成、という会社追加ウィザード
+- 企業リサーチのWeb検索は `WebSearchClient` インターフェース＋スタブ実装で進める。実プロバイダ(Tavily等)への接続は後日。リサーチ結果は `companies.overview` に集約する(`company_interview_steps` / `company_review_summaries` テーブルは今は使わない)
+- 対象外(今は着手しない): 本番モード、サイドバーのカテゴリ表示、レポート/採点機能
+- 本番モードに関する依頼が来ても、既存コードを壊さないことを優先する。設計に影響する大きな変更が必要な場合は、実装前に必ず確認する
 
 ## 技術スタック
 
 - Backend: Java 21 / Spring Boot 3.x / Spring AI (ChatClient, `@Tool`, `.entity()`)
 - Frontend: Next.js (App Router) / TypeScript / React
-- LLM: Ollama (ローカル。開発中のデフォルトモデルは `llama3.1:8b`)
+- LLM: Ollama (ローカル。開発中のデフォルトモデルは `llama3.2:3b` — メモリの小さい環境でも起動できるよう軽量モデルを既定にする。GPUがある環境では `OLLAMA_MODEL` を `llama3.1:8b` 等に上げる。日本語品質重視なら `qwen2.5:3b` も可)
 - STT: faster-whisper (Dockerコンテナ、REST経由で呼び出す)
 - TTS: VOICEVOX Engine (Dockerコンテナ、REST経由で呼び出す)
 - DB: PostgreSQL (Docker Compose。開発初期はH2でも可、本実装はPostgres前提でスキーマを書く)
@@ -64,6 +66,7 @@ DB/APIの詳細設計は `docs/interview_app_db_api_design.md` を作成済み�
 - **練習モードのメッセージ種別**: AIが「アドバイス・回答例」を出す場合は応答冒頭に`<<ADVICE>>`マーカーを付けさせ、バックエンドで検出して`chat_messages.message_type`に反映する(マーカーが無ければ`NORMAL`)。本番モードの終了検知(`<<INTERVIEW_END>>`)と同じマーカー方式に統一する。WebSocketでは`assistant_message_start`イベントの`messageType`でフロントに伝える
 - **本番モード(後回し)**: 終了判定は「AIが十分と判断」または「ユーザー強制終了」の2系統。AI判断はレスポンス末尾に `<<INTERVIEW_END>>` マーカーを付ける方式で検知する(ツール呼び出しは使わない。ローカル小型モデルでの信頼性とストリーミングTTSとの相性を優先)。終了後にバックグラウンドで1回のLLM呼び出しにまとめてスコア・具体的フィードバック・傾向分析を生成する。質問ごとの並列評価は行わない
 - **質問の並び**: サイドバーは会社の直下に具体的な質問がそのまま並ぶ。カテゴリ(自己PR/志望動機など)はUI上のフォルダとしては作らず、`interview_questions.internal_category` に内部タグとしてのみ持たせる
+- **企業リサーチ**: Web検索は `WebSearchClient` 抽象の背後に閉じ込め、既定はスタブ実装。会社追加ウィザードはステートレスなAPI(`POST /api/companies/research`、`POST /api/companies/generate-questions`)で未保存の下書きを作り、最終ステップの `POST /api/companies`(`questions[]` 付き)で会社＋質問を一括作成する(途中でキャンセルしても孤児レコードを残さない)。LLMによる要約・質問生成は `CompanyResearchLlm` 抽象の背後に置く(`PracticeCoachLlm` と同じ方針)。リサーチ・質問生成の呼び出しは非ストリーミングで、`OllamaOptions` で出力トークン数を絞る
 - ローカル1GPU環境では `OLLAMA_NUM_PARALLEL` を上げてもVRAM不足でキューイングされるだけのことが多い。並列化を前提にした設計をしない
 
 ## コーディング規約
@@ -83,5 +86,6 @@ DB/APIの詳細設計は `docs/interview_app_db_api_design.md` を作成済み�
 
 ## 現在の状況
 
-- コード未着手。DB設計・API設計(`docs/interview_app_db_api_design.md`)と、練習モードのUIプロトタイプ(Claude Design)は完了
-- 次のステップ: Spring Bootプロジェクトの雛形作成 → 練習モード用の最小構成(1質問チャット+WebSocket+Ollama連携)から着手 → Claude DesignのプロトタイプをClaude Codeへハンドオフしてフロントエンド実装に反映
+- 練習モード: REST API + WebSocket チャット(Ollama/STT/TTS)+ フロント実装まで完了。フロントUIは `ui-design/` のプロトタイプに合わせて刷新済み
+- 企業リサーチ(会社追加ウィザード): 着手中。Web検索はスタブ実装、`companies.overview` に集約、LLMで要約・質問生成
+- 本番モード・レポート機能は未着手

@@ -64,6 +64,16 @@ export interface PracticeEndResponse {
   lightSummary: string | null;
 }
 
+/** 企業リサーチ: 未保存の企業概要下書き。 */
+export interface ResearchDraft {
+  overview: string;
+}
+
+/** 企業リサーチ: 未保存の生成済み質問。 */
+export interface GeneratedQuestions {
+  questions: string[];
+}
+
 /** チャット表示用のメッセージ（ストリーミング中の未確定分も含む）。 */
 export interface ChatMessage {
   id: string;

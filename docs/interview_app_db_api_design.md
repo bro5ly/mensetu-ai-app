@@ -136,14 +136,19 @@ REST（CRUD・企業リサーチ・レポート取得）＋ WebSocket（リア�
 
 ### 企業関連
 
-| メソッド | パス                         | 説明                                                                                |
-| -------- | ---------------------------- | ----------------------------------------------------------------------------------- |
-| POST     | `/api/companies/research`    | 会社名から企業リサーチを実行し、確認前のプロフィール案を返す（未保存）              |
-| POST     | `/api/companies`             | 確認・編集済みプロフィールを保存して会社を作成。あわせて具体的な質問をLLMで一括生成 |
-| GET      | `/api/companies`             | 会社一覧取得（サイドバー表示用）                                                    |
-| GET      | `/api/companies/{companyId}` | 会社詳細（プロフィール＋質問一覧）取得                                              |
-| PATCH    | `/api/companies/{companyId}` | 会社プロフィールを編集                                                              |
-| DELETE   | `/api/companies/{companyId}` | 会社を削除                                                                          |
+| メソッド | パス                                    | 説明                                                                                        |
+| -------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| POST     | `/api/companies/research`               | 会社名(＋任意で現在の下書き・フィードバック)から Web 検索＋LLM要約で企業概要の下書きを返す（未保存）。現フェーズの Web 検索は `WebSearchClient` のスタブ実装。結果は `{ overview }` のみ（選考フロー等は返さない） |
+| POST     | `/api/companies/generate-questions`     | 確認済みの `{ name, overview }` から面接想定質問を 3 件生成して返す（未保存、`{ questions: string[] }`） |
+| POST     | `/api/companies`                        | 会社を作成。`{ name, overview?, questions?: string[] }` を受け取り、`questions` があれば会社作成と同時に一括登録する（ウィザードの最終ステップ）  |
+| GET      | `/api/companies`                        | 会社一覧取得（サイドバー表示用）                                                              |
+| GET      | `/api/companies/{companyId}`            | 会社詳細（プロフィール＋質問一覧）取得                                                        |
+| PATCH    | `/api/companies/{companyId}`            | 会社プロフィールを編集                                                                       |
+| DELETE   | `/api/companies/{companyId}`            | 会社を削除                                                                                   |
+
+> 会社追加ウィザードはステートレス設計。`/research`・`/generate-questions` は DB に保存せず下書きだけを返し、
+> `POST /api/companies` で会社＋質問をまとめて作成する（途中でキャンセルしても孤児レコードを残さない）。
+> リサーチ結果は `companies.overview` に集約し、`company_interview_steps` / `company_review_summaries` は現状未使用。
 
 ### 質問関連
 

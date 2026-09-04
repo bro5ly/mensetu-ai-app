@@ -49,11 +49,13 @@ docker compose up -d
 ```
 Ollamaはデフォルトでは**CPU動作**。NVIDIA GPUを使う場合は `docker-compose.yml` の `ollama` サービスにあるコメントアウト済みの `deploy:` ブロックを有効化する。
 
-4. Ollamaモデルをダウンロード（初回のみ / 8Bは実行に約5〜6GBのRAMが必要）
+4. Ollamaモデルをダウンロード（初回のみ）
 ```bash
-docker compose exec ollama ollama pull llama3.1:8b
-# メモリが少ない環境では軽量モデルで代用できる（.env の OLLAMA_MODEL を合わせて変更）
-# docker compose exec ollama ollama pull llama3.2:1b
+# 既定モデル（軽量・約2GB）。会話・企業リサーチの要約・質問生成すべてで使用する。
+docker compose exec ollama ollama pull llama3.2:3b
+# GPU があり品質を上げたい場合（約5〜6GBのRAMが必要）。.env の OLLAMA_MODEL も合わせて変更する。
+# docker compose exec ollama ollama pull llama3.1:8b
+# 日本語重視なら qwen2.5:3b、超低メモリなら llama3.2:1b も可
 ```
 
 5. DBスキーマはバックエンド起動時にFlywayが自動適用する（手動マイグレーション不要）。
@@ -86,13 +88,14 @@ npm run dev
 フロントエンドは http://localhost:3000 で起動します。API/WebSocketの接続先は
 `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_WS_URL`（未設定なら `http://localhost:8080` / `ws://localhost:8080`）。
 
-### 練習モードの動作確認手順
+### 動作確認手順
 
-1. `docker compose up -d` → `docker compose exec ollama ollama pull llama3.1:8b`
+1. `docker compose up -d` → `docker compose exec ollama ollama pull llama3.2:3b`
 2. `cd backend && ./gradlew bootRun`（Flywayがスキーマを作成）
 3. `cd frontend && npm run dev`
 4. http://localhost:3000 を開く
-5. サイドバーの「＋ 会社を追加」で会社を作成 → 会社の「＋」で質問を追加
+5. サイドバーの「会社を追加」→ 会社名を入力 →「検索する」でAIが企業概要をまとめる → 内容を確認・編集して「決定」→「この内容から質問を作成する」→「この質問をリストに追加する」
+   （会社の「＋」から質問を手動追加することもできる）
 6. 質問をクリックすると練習セッションが開始し、WebSocketで接続される
 7. マイクボタン（音声）または下部のテキスト入力で回答すると、コーチがストリーミングで応答する
 8. 「終了する」で終了し、軽いサマリーが表示される
