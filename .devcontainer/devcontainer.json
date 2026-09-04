@@ -1,0 +1,74 @@
+{
+  "name": "Mensetu AI App Development",
+  "dockerComposeFile": "../docker-compose.dev.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "vmware.vscode-spring-boot",
+        "vscjava.vscode-spring-initializr",
+        "vscjava.vscode-spring-boot-dashboard",
+        "vscjava.vscode-gradle",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "ms-playwright.playwright",
+        "eamodio.gitlens",
+        "mhutchie.git-graph",
+        "donjayamanne.githistory",
+        "GitHub.vscode-pull-request-github",
+        "github.copilot",
+        "github.copilot-chat",
+        "anthropic.claude-code"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[java]": {
+          "editor.defaultFormatter": "redhat.java",
+          "editor.tabSize": 4
+        },
+        "[typescript]": {
+          "editor.tabSize": 2
+        },
+        "[typescriptreact]": {
+          "editor.tabSize": 2
+        },
+        "git.enableSmartCommit": true,
+        "git.confirmSync": false,
+        "git.autofetch": true
+      }
+    }
+  },
+  "forwardPorts": [3000, 8080, 5432, 11434, 8000, 50021],
+  "portsAttributes": {
+    "3000": {
+      "label": "Next.js Frontend",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "Spring Boot Backend",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "ignore"
+    },
+    "11434": {
+      "label": "Ollama",
+      "onAutoForward": "ignore"
+    },
+    "8000": {
+      "label": "faster-whisper",
+      "onAutoForward": "ignore"
+    },
+    "50021": {
+      "label": "VOICEVOX",
+      "onAutoForward": "ignore"
+    }
+  },
+  "postCreateCommand": "cd frontend && npm install",
+  "remoteUser": "vscode"
+}
