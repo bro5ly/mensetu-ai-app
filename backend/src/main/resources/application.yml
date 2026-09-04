@@ -37,6 +37,8 @@ server:
 
 # Custom properties for external services
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
   whisper:
     base-url: ${WHISPER_BASE_URL:http://localhost:8000}
     model: ${WHISPER_MODEL:base}

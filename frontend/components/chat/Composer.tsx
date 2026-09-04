@@ -17,7 +17,7 @@ export function Composer({ disabled, onSend }: Props) {
 
   return (
     <form
-      className="flex w-full max-w-2xl gap-2"
+      className="mt-1 flex w-full gap-2"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -28,12 +28,12 @@ export function Composer({ disabled, onSend }: Props) {
         onChange={(e) => setValue(e.target.value)}
         disabled={disabled}
         placeholder="テキストで入力することもできます"
-        className="min-w-0 flex-1 rounded-full border border-neutral-300 px-4 py-2.5 text-sm outline-none focus:border-violet-400 disabled:bg-neutral-50"
+        className="min-w-0 flex-1 rounded-[22px] border border-line px-4 py-[11px] text-sm outline-none focus:border-accent disabled:bg-panel-sidebar"
       />
       <button
         type="submit"
         disabled={disabled || !value.trim()}
-        className="rounded-full bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:opacity-40"
+        className="rounded-[22px] px-[18px] py-[11px] text-sm font-semibold text-white transition enabled:bg-accent disabled:cursor-not-allowed disabled:bg-panel-muted disabled:text-ink-faint"
       >
         送信
       </button>

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; }
+  @keyframes waveBar { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
+  @keyframes blinkDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+  @keyframes bounceDot { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-5px); opacity: 1; } }
+  @keyframes eqBar { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
+  @keyframes pulseRing { 0% { transform: scale(1); opacity: 0.5; } 100% { transform: scale(1.55); opacity: 0; } }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:oklch(0.96 0.004 295);display:flex;align-items:center;justify-content:center;font-family:'Work Sans',system-ui,sans-serif;padding:28px;box-sizing:border-box;">
+  <div style="width:430px;height:860px;background:#ffffff;border-radius:28px;box-shadow:0 24px 60px -20px oklch(0.3 0.05 295 / 0.35);overflow:hidden;position:relative;display:flex;flex-direction:column;">
+
+    <sc-if value="{{ isChatScreen }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;height:100%;">
+
+        <div style="padding:22px 22px 14px;border-bottom:1px solid oklch(0.9 0.006 295);flex-shrink:0;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11px;color:oklch(0.5 0.02 295);letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:6px;">質問</div>
+              <div style="font-size:17px;font-weight:600;color:oklch(0.22 0.02 295);line-height:1.5;">学生時代に力を入れたことを教えてください</div>
+            </div>
+            <button onClick="{{ onEndClick }}" style="flex-shrink:0;padding:8px 14px;border-radius:20px;border:1px solid oklch(0.9 0.006 295);background:#ffffff;color:oklch(0.5 0.02 295);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;">終了する</button>
+          </div>
+          <sc-if value="{{ isRecording }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:12px;display:flex;align-items:center;gap:7px;">
+              <div style="width:7px;height:7px;border-radius:50%;background:oklch(0.4 0.14 295);animation:blinkDot 1.1s ease-in-out infinite;"></div>
+              <span style="font-size:12.5px;color:oklch(0.4 0.14 295);font-weight:600;">録音中...</span>
+            </div>
+          </sc-if>
+        </div>
+
+        <div ref="{{ chatRef }}" style="flex:1;overflow-y:auto;padding:20px 20px 8px;display:flex;flex-direction:column;gap:14px;">
+
+          <sc-for list="{{ messages }}" as="msg" hint-placeholder-count="1">
+            <sc-if value="{{ msg.isUser }}" hint-placeholder-val="{{ false }}">
+              <div style="align-self:flex-end;max-width:78%;background:oklch(0.52 0.16 295);color:#ffffff;border-radius:16px 16px 4px 16px;padding:12px 16px;font-size:14.5px;line-height:1.55;">{{ msg.displayText }}</div>
+            </sc-if>
+            <sc-if value="{{ msg.isAi }}" hint-placeholder-val="{{ false }}">
+              <div style="align-self:flex-start;max-width:78%;background:oklch(0.955 0.006 295);color:oklch(0.22 0.02 295);border-radius:16px 16px 16px 4px;padding:12px 16px;font-size:14.5px;line-height:1.55;">
+                <div>{{ msg.displayText }}</div>
+                <sc-if value="{{ msg.playing }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+                    <div style="display:flex;align-items:flex-end;gap:2px;height:11px;">
+                      <div style="width:2.5px;height:100%;background:oklch(0.52 0.16 295);border-radius:1px;animation:eqBar 0.7s ease-in-out infinite;"></div>
+                      <div style="width:2.5px;height:100%;background:oklch(0.52 0.16 295);border-radius:1px;animation:eqBar 0.7s ease-in-out infinite;animation-delay:0.15s;"></div>
+                      <div style="width:2.5px;height:100%;background:oklch(0.52 0.16 295);border-radius:1px;animation:eqBar 0.7s ease-in-out infinite;animation-delay:0.3s;"></div>
+                    </div>
+                    <span style="font-size:11px;color:oklch(0.5 0.02 295);">再生中</span>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+            <sc-if value="{{ msg.isAdvice }}" hint-placeholder-val="{{ false }}">
+              <div style="align-self:flex-start;max-width:82%;background:oklch(0.95 0.035 295);border:1.5px solid oklch(0.72 0.12 295);color:oklch(0.22 0.02 295);border-radius:16px;padding:13px 16px;font-size:14.5px;line-height:1.55;">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+                  <div style="width:16px;height:16px;border-radius:50%;background:oklch(0.52 0.16 295);color:#ffffff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">!</div>
+                  <span style="font-size:12px;font-weight:700;color:oklch(0.4 0.14 295);letter-spacing:0.02em;">アドバイス</span>
+                </div>
+                <div>{{ msg.displayText }}</div>
+              </div>
+            </sc-if>
+          </sc-for>
+
+          <sc-if value="{{ isProcessing }}" hint-placeholder-val="{{ false }}">
+            <div style="align-self:flex-start;background:oklch(0.955 0.006 295);border-radius:16px 16px 16px 4px;padding:14px 18px;display:flex;align-items:center;gap:5px;">
+              <div style="width:6px;height:6px;border-radius:50%;background:oklch(0.5 0.02 295);animation:bounceDot 1.2s infinite;"></div>
+              <div style="width:6px;height:6px;border-radius:50%;background:oklch(0.5 0.02 295);animation:bounceDot 1.2s infinite;animation-delay:0.15s;"></div>
+              <div style="width:6px;height:6px;border-radius:50%;background:oklch(0.5 0.02 295);animation:bounceDot 1.2s infinite;animation-delay:0.3s;"></div>
+            </div>
+          </sc-if>
+
+        </div>
+
+        <div style="flex-shrink:0;padding:10px 24px 30px;display:flex;flex-direction:column;align-items:center;gap:12px;">
+          <div style="height:34px;display:flex;align-items:center;justify-content:center;gap:3px;">
+            <sc-if value="{{ isRecording }}" hint-placeholder-val="{{ false }}">
+              <sc-for list="{{ waveBars }}" as="bar" hint-placeholder-count="24">
+                <div style="{{ bar.style }}"></div>
+              </sc-for>
+            </sc-if>
+          </div>
+
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+            <sc-if value="{{ isRecording }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;width:76px;height:76px;border-radius:50%;background:oklch(0.4 0.14 295 / 0.3);animation:pulseRing 1.6s ease-out infinite;"></div>
+            </sc-if>
+            <button onClick="{{ onMicClick }}" disabled="{{ isMicDisabled }}" style="{{ micButtonStyle }}">
+              <sc-if value="{{ isRecording }}" hint-placeholder-val="{{ false }}">
+                <div style="width:22px;height:22px;border-radius:6px;background:#ffffff;"></div>
+              </sc-if>
+              <sc-if value="{{ showMicIcon }}" hint-placeholder-val="{{ true }}">
+                <div style="width:20px;height:30px;display:flex;flex-direction:column;align-items:center;">
+                  <div style="width:20px;height:30px;border-radius:10px;background:{{ micIconColor }};"></div>
+                </div>
+              </sc-if>
+            </button>
+          </div>
+          <div style="font-size:12.5px;color:oklch(0.5 0.02 295);font-weight:500;">{{ micCaption }}</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isSummaryScreen }}" hint-placeholder-val="{{ false }}">
+      <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:40px;text-align:center;">
+        <div style="width:64px;height:64px;border-radius:50%;background:oklch(0.52 0.16 295);color:#ffffff;font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center;">✓</div>
+        <div style="font-size:22px;font-weight:700;color:oklch(0.22 0.02 295);">お疲れ様でした</div>
+        <div style="font-size:14px;color:oklch(0.5 0.02 295);line-height:1.6;">今回の練習では、AIコーチと{{ turnCount }}回のやり取りをしました。</div>
+        <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:260px;margin-top:8px;">
+          <button onClick="{{ onRestartClick }}" style="padding:13px;border-radius:14px;border:none;background:oklch(0.52 0.16 295);color:#ffffff;font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;">もう一度練習する</button>
+          <button onClick="{{ onBackToListClick }}" style="padding:13px;border-radius:14px;border:1px solid oklch(0.9 0.006 295);background:#ffffff;color:oklch(0.22 0.02 295);font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;">質問一覧に戻る</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isListScreen }}" hint-placeholder-val="{{ false }}">
+      <div style="height:100%;display:flex;flex-direction:column;">
+        <div style="padding:24px 22px 16px;border-bottom:1px solid oklch(0.9 0.006 295);">
+          <div style="font-size:18px;font-weight:700;color:oklch(0.22 0.02 295);">練習する質問を選んでください</div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:12px;">
+          <sc-for list="{{ questionList }}" as="q" hint-placeholder-count="3">
+            <button onClick="{{ onSelectQuestionClick }}" style="text-align:left;padding:16px 18px;border-radius:14px;border:1px solid oklch(0.9 0.006 295);background:#ffffff;font-size:14.5px;color:oklch(0.22 0.02 295);font-family:inherit;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <span>{{ q.text }}</span>
+              <span style="color:oklch(0.5 0.02 295);font-size:16px;">›</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showEndModal }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:oklch(0.2 0.01 295 / 0.5);display:flex;align-items:center;justify-content:center;padding:24px;z-index:20;">
+        <div style="background:#ffffff;border-radius:20px;padding:26px 22px;width:100%;max-width:300px;text-align:center;">
+          <div style="font-size:16px;font-weight:600;color:oklch(0.22 0.02 295);line-height:1.5;margin-bottom:20px;">この質問の練習を終了しますか？</div>
+          <div style="display:flex;gap:10px;">
+            <button onClick="{{ onContinueClick }}" style="flex:1;padding:11px;border-radius:12px;border:1px solid oklch(0.9 0.006 295);background:#ffffff;color:oklch(0.22 0.02 295);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">続ける</button>
+            <button onClick="{{ onConfirmEndClick }}" style="flex:1;padding:11px;border-radius:12px;border:none;background:oklch(0.52 0.16 295);color:#ffffff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">終了する</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const SCRIPT_STEPS = [
+  {
+    userText: "大学のサークル活動でリーダーを務めていました。部員をまとめる中で工夫したことについて話します。",
+    ai: { type: "normal", text: "なるほど。そのときチームをまとめる上で一番苦労したのはどんな点でしたか？" }
+  },
+  {
+    userText: "えっと、その…うまく言えないんですけど、意見がぶつかったときが大変でした。",
+    ai: { type: "advice", text: "焦らなくて大丈夫です。「状況→課題→行動→結果」の順で話すと伝わりやすくなります。例えば「メンバー間で意見が対立していたので、まず一人ひとりの話を聞き、共通の目標を再確認しました」のように整理してみましょう。" }
+  },
+  {
+    userText: "アルバイト先で新人スタッフの育成を担当していました。教え方を工夫していました。",
+    ai: { type: "normal", text: "新人育成、良いですね。工夫した点や、成果につながったと感じた場面があれば教えてください。" }
+  },
+  {
+    userText: "うーん、成果というか、どう伝えればいいか少し不安です…。",
+    ai: { type: "advice", text: "数字や具体的な変化を一つ入れると説得力が増します。「新人の離脱率が下がった」「マニュアルを作って教育時間が半分になった」など、小さな成果でも構いません。" }
+  }
+];
+
+class Component extends DCLogic {
+  chatRef = React.createRef();
+
+  state = {
+    screen: "chat",
+    chatState: "idle",
+    turnIndex: 0,
+    turnCount: 0,
+    nextId: 2,
+    showEndModal: false,
+    messages: [
+      { id: 1, isUser: false, isAi: true, isAdvice: false, displayText: "では、実際に答えるつもりで話してみてください。", playing: false }
+    ]
+  };
+
+  scrollToBottom() {
+    requestAnimationFrame(() => {
+      const el = this.chatRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }
+
+  onMicClick = () => {
+    const cs = this.state.chatState;
+    if (cs === "idle") {
+      this.setState({ chatState: "recording" });
+    } else if (cs === "recording") {
+      this.setState({ chatState: "processing" });
+      this.runProcessing();
+    }
+  };
+
+  runProcessing() {
+    const step = SCRIPT_STEPS[this.state.turnIndex % SCRIPT_STEPS.length];
+    setTimeout(() => {
+      this.setState((s) => ({
+        nextId: s.nextId + 1,
+        messages: [...s.messages, { id: s.nextId, isUser: true, isAi: false, isAdvice: false, displayText: step.userText, playing: false }]
+      }));
+      this.scrollToBottom();
+      setTimeout(() => this.streamAiMessage(step.ai), 900);
+    }, 500);
+  }
+
+  streamAiMessage(ai) {
+    const id = this.state.nextId;
+    const isAdvice = ai.type === "advice";
+    this.setState((s) => ({
+      chatState: "responding",
+      nextId: s.nextId + 1,
+      messages: [...s.messages, { id, isUser: false, isAi: !isAdvice, isAdvice: isAdvice, displayText: "", playing: !isAdvice }]
+    }));
+    this.scrollToBottom();
+    let i = 0;
+    const interval = setInterval(() => {
+      i += 2;
+      this.setState((s) => ({
+        messages: s.messages.map((m) => (m.id === id ? { ...m, displayText: ai.text.slice(0, i) } : m))
+      }));
+      this.scrollToBottom();
+      if (i >= ai.text.length) {
+        clearInterval(interval);
+        setTimeout(() => {
+          this.setState((s) => ({
+            chatState: "idle",
+            turnIndex: s.turnIndex + 1,
+            turnCount: s.turnCount + 1,
+            messages: s.messages.map((m) => (m.id === id ? { ...m, playing: false } : m))
+          }));
+        }, 1400);
+      }
+    }, 35);
+  }
+
+  onEndClick = () => this.setState({ showEndModal: true });
+  onContinueClick = () => this.setState({ showEndModal: false });
+  onConfirmEndClick = () => this.setState({ showEndModal: false, screen: "summary" });
+
+  resetChat() {
+    this.setState({
+      screen: "chat",
+      chatState: "idle",
+      turnIndex: 0,
+      turnCount: 0,
+      nextId: 2,
+      showEndModal: false,
+      messages: [
+        { id: 1, isUser: false, isAi: true, isAdvice: false, displayText: "では、実際に答えるつもりで話してみてください。", playing: false }
+      ]
+    });
+  }
+
+  onRestartClick = () => this.resetChat();
+  onSelectQuestionClick = () => this.resetChat();
+  onBackToListClick = () => this.setState({ screen: "questionlist" });
+
+  renderVals() {
+    const { screen, chatState, showEndModal, messages, turnCount } = this.state;
+    const isRecording = chatState === "recording";
+    const isProcessing = chatState === "processing";
+    const isMicDisabled = chatState === "processing" || chatState === "responding";
+
+    let micButtonStyle = "width:76px;height:76px;border-radius:50%;border:none;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;transition:background 0.2s;";
+    let micIconColor = "#ffffff";
+    let micCaption = "";
+    let showMicIcon = true;
+
+    if (isRecording) {
+      micButtonStyle += "background:oklch(0.4 0.14 295);";
+      micCaption = "タップして停止";
+      showMicIcon = false;
+    } else if (isMicDisabled) {
+      micButtonStyle += "background:oklch(0.9 0.006 295);cursor:not-allowed;";
+      micIconColor = "oklch(0.7 0.01 295)";
+      micCaption = chatState === "processing" ? "文字起こし中..." : "AIコーチが応答中...";
+    } else {
+      micButtonStyle += "background:oklch(0.52 0.16 295);";
+      micCaption = "タップして話す";
+    }
+
+    const waveBars = Array.from({ length: 24 }, (_, i) => {
+      const h = 8 + ((i * 7) % 26);
+      const dur = (0.6 + (i % 5) * 0.09).toFixed(2);
+      const delay = ((i % 7) * 0.06).toFixed(2);
+      return {
+        style: `width:3px;height:${h}px;background:oklch(0.52 0.16 295);border-radius:2px;animation:waveBar ${dur}s ease-in-out infinite;animation-delay:${delay}s;transform-origin:center;`
+      };
+    });
+
+    return {
+      isChatScreen: screen === "chat",
+      isSummaryScreen: screen === "summary",
+      isListScreen: screen === "questionlist",
+      isRecording,
+      isProcessing,
+      isMicDisabled,
+      micButtonStyle,
+      micIconColor,
+      micCaption,
+      showMicIcon,
+      waveBars,
+      messages,
+      showEndModal,
+      turnCount,
+      chatRef: this.chatRef,
+      questionList: [
+        { text: "学生時代に力を入れたことを教えてください" },
+        { text: "自己PRをしてください" },
+        { text: "志望動機を教えてください" }
+      ],
+      onMicClick: this.onMicClick,
+      onEndClick: this.onEndClick,
+      onContinueClick: this.onContinueClick,
+      onConfirmEndClick: this.onConfirmEndClick,
+      onRestartClick: this.onRestartClick,
+      onBackToListClick: this.onBackToListClick,
+      onSelectQuestionClick: this.onSelectQuestionClick
+    };
+  }
+}
+</script>
+</body>
+</html>
