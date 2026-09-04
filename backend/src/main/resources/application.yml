@@ -11,6 +11,10 @@ spring:
     password: ${POSTGRES_PASSWORD:mensetu_dev_pass}
     driver-class-name: org.postgresql.Driver
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -38,6 +42,7 @@ app:
     model: ${WHISPER_MODEL:base}
   voicevox:
     base-url: ${VOICEVOX_BASE_URL:http://localhost:50021}
+    speaker: ${VOICEVOX_SPEAKER:3}
 
 logging:
   level:
@@ -52,10 +57,13 @@ spring:
       on-profile: test
 
   datasource:
-    url: jdbc:h2:mem:testdb
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
+
+  flyway:
+    enabled: false
 
   jpa:
     hibernate:

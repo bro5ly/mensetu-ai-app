@@ -37,6 +37,7 @@ frontend/.next/
 frontend/out/
 frontend/build/
 frontend/.turbo/
+*.tsbuildinfo
 
 # Gradle
 backend/.gradle/
