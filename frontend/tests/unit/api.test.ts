@@ -1,0 +1,72 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api, ApiError } from "@/lib/api";
+
+const fetchMock = vi.fn();
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  fetchMock.mockReset();
+  vi.unstubAllGlobals();
+});
+
+function jsonResponse(body: unknown, init: Partial<Response> = {}) {
+  return {
+    ok: init.status ? init.status < 400 : true,
+    status: init.status ?? 200,
+    statusText: init.statusText ?? "OK",
+    json: async () => body,
+  } as Response;
+}
+
+describe("api", () => {
+  it("会社一覧をGETする", async () => {
+    fetchMock.mockResolvedValue(jsonResponse([{ id: "c1", name: "ABC社" }]));
+
+    const companies = await api.listCompanies();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/companies",
+      expect.objectContaining({ headers: expect.any(Object) }),
+    );
+    expect(companies).toHaveLength(1);
+  });
+
+  it("練習セッション開始はPOSTする", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: "s1" }));
+
+    await api.startPracticeSession("q1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/questions/q1/practice-session",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("エラーレスポンスのmessageをApiErrorに変換する", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ message: "会社が見つかりません" }, { status: 404 }),
+    );
+
+    await expect(api.getCompany("missing")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 404,
+      message: "会社が見つかりません",
+    });
+  });
+
+  it("204はundefinedを返す", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 204,
+      json: async () => {
+        throw new Error("no body");
+      },
+    } as unknown as Response);
+
+    await expect(api.deleteQuestion("q1")).resolves.toBeUndefined();
+    expect(ApiError).toBeDefined();
+  });
+});
