@@ -5,7 +5,7 @@
 ## 技術スタック
 
 ### Backend
-- Java 21
+- Java 17+ (本番環境ではJava 21を推奨)
 - Spring Boot 3.x
 - Spring AI (Ollama integration)
 - PostgreSQL
