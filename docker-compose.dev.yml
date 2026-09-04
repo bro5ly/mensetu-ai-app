@@ -8,6 +8,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     command: sleep infinity
     network_mode: service:postgres
+    # network_mode: service:postgres なので、他サービスは localhost ではなく
+    # サービス名で参照する（postgres だけは netns 共有で localhost:5432 が使える）。
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      WHISPER_BASE_URL: http://faster-whisper:8000
+      VOICEVOX_BASE_URL: http://voicevox:50021
     depends_on:
       - postgres
       - ollama
