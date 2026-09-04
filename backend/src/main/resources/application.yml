@@ -42,6 +42,7 @@ app:
     model: ${WHISPER_MODEL:base}
   voicevox:
     base-url: ${VOICEVOX_BASE_URL:http://localhost:50021}
+    speaker: ${VOICEVOX_SPEAKER:3}
 
 logging:
   level:
