@@ -19,7 +19,7 @@
 
 - Backend: Java 21 / Spring Boot 3.x / Spring AI (ChatClient, `@Tool`, `.entity()`)
 - Frontend: Next.js (App Router) / TypeScript / React
-- LLM: Ollama (**Dockerではなくホスト側でネイティブ起動**する運用。Mac: `brew install ollama && ollama serve`。Windows: [ollama.com](https://ollama.com/download/windows) からインストーラーで導入するとバックグラウンドサービスとして自動起動する(手動で`ollama serve`を叩く必要はない)。devcontainerからは `OLLAMA_BASE_URL=http://host.docker.internal:11434` でホストのOllamaに到達する(`docker-compose.dev.yml`が既定でこの値を設定する。`host.docker.internal`はDocker Desktop for Mac/Windowsのどちらでも解決できる)。現在の開発機(Mac)では `llama3.2:3b` を使用。Docker上でCPU動作させる等メモリに余裕がない環境では `OLLAMA_MODEL` を `llama3.2:1b` に落とす、GPUがある環境では `llama3.1:8b` 等に上げる。日本語品質重視なら `qwen2.5:3b` も可)
+- LLM: Ollama (**既定はDockerではなくホスト側でネイティブ起動**する運用。Mac: `brew install ollama && ollama serve`。Windows: [ollama.com](https://ollama.com/download/windows) からインストーラーで導入するとバックグラウンドサービスとして自動起動する(手動で`ollama serve`を叩く必要はない)。devcontainerからは `OLLAMA_BASE_URL=http://host.docker.internal:11434` でホストのOllamaに到達する(`docker-compose.dev.yml`が既定でこの値を設定する。`host.docker.internal`はDocker Desktop for Mac/Windowsのどちらでも解決できる)。現在の開発機(Mac)では `llama3.2:3b` を使用。Docker上でCPU動作させる等メモリに余裕がない環境では `OLLAMA_MODEL` を `llama3.2:1b` に落とす、GPUがある環境では `llama3.1:8b` 等に上げる。日本語品質重視なら `qwen2.5:3b` も可。**CPUが非力でNVIDIA GPUがあるWindows機**(例: RTX 3060)向けに、`docker-compose.yml`/`docker-compose.dev.yml`に`ollama`サービスをprofile(`ollama-gpu`)として用意している。`docker compose --profile ollama-gpu up -d`で起動でき、ホストのポート11434に公開されるためネイティブ起動と同じ`OLLAMA_BASE_URL`設定で到達できる。既定では起動しないので他環境の運用に影響しない)
 - STT: faster-whisper (Dockerコンテナ、REST経由で呼び出す)
 - TTS: VOICEVOX Engine (Dockerコンテナ、REST経由で呼び出す)
 - DB: PostgreSQL (Docker Compose。開発初期はH2でも可、本実装はPostgres前提でスキーマを書く)

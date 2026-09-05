@@ -48,17 +48,18 @@ cp .env.example .env
 ```bash
 docker compose up -d
 ```
-**Ollamaはこのcomposeの対象外**（`docker-compose.yml`の`ollama`サービスはコメントアウト済み）。次のステップでホスト側にネイティブ起動する。
+**Ollamaはこのcomposeの対象外**（`docker-compose.yml`の`ollama`サービスは既定では起動しないprofile扱い）。次のステップでOllamaを用意する。
 
-4. Ollamaをホストにネイティブインストールして起動
+4. Ollamaを用意する。CPU性能とGPUの有無に応じて2通りの方法がある。
 
-**Mac**
+**方法A: ホストにネイティブインストール（推奨・Mac / CPUが強いWindows機）**
+
+Mac
 ```bash
 brew install ollama
 ollama serve
 ```
-
-**Windows**
+Windows
 
 [ollama.com](https://ollama.com/download/windows) からインストーラーをダウンロードして実行する。
 インストール後は常駐サービスとして自動起動する（タスクトレイに表示される）ので、
@@ -67,11 +68,26 @@ ollama serve
 IDE + フロント + バックエンド + 各コンテナと同時にDocker上でCPU動作させるとメモリ不足で
 `llama-server ... signal: killed`（OOM kill）になりやすいため、ネイティブ起動を既定にしている。
 ホストの全RAM（Macであれば追加でMetal GPU）が使え、CPU動作のコンテナより桁違いに速い。
-`.env`の`OLLAMA_BASE_URL`はホストで直接`./gradlew bootRun`する場合は`http://localhost:11434`のまま、
-devcontainerを使う場合は`docker-compose.dev.yml`が既定で`http://host.docker.internal:11434`に向ける
-（`host.docker.internal`はDocker Desktop for Mac/Windowsのどちらでも解決できる）。
+
+**方法B: NVIDIA GPU搭載Windows機で、GPU対応のOllamaコンテナを使う**
+
+CPUが非力でもNVIDIA GPU（例: RTX 3060）があれば、ネイティブ起動よりこちらの方が速い。
+Docker DesktopがGPUパススルーに対応していれば（WSL2バックエンド＋最新NVIDIAドライバがあれば
+追加設定は不要）、以下でGPU対応のOllamaコンテナを起動できる。
+```bash
+docker compose --profile ollama-gpu up -d
+```
+`ollama`コンテナはホストのポート11434に公開されるため、`.env`の`OLLAMA_BASE_URL`は
+デフォルトの`http://localhost:11434`のままで到達できる（変更不要）。
+
+どちらの方法でも、`.env`の`OLLAMA_BASE_URL`はホストで直接`./gradlew bootRun`する場合は
+`http://localhost:11434`のまま、devcontainerを使う場合は`docker-compose.dev.yml`が既定で
+`http://host.docker.internal:11434`に向ける（`host.docker.internal`はDocker Desktop for
+Mac/Windowsのどちらでも解決でき、方法Bのコンテナにも到達できる）。
 
 5. Ollamaモデルをダウンロード（初回のみ）
+
+方法A（ネイティブ起動）の場合:
 ```bash
 # 現在の開発機で使用しているモデル（約2GB）。会話・企業リサーチの要約・質問生成すべてで使用する。
 ollama pull llama3.2:3b
@@ -81,6 +97,13 @@ ollama pull llama3.2:3b
 # GPUがあれば以下も可（約5〜6GB）
 # ollama pull llama3.1:8b
 # 日本語重視なら qwen2.5:3b も可
+```
+
+方法B（GPUコンテナ）の場合、`ollama pull`ではなくコンテナ内で実行する:
+```bash
+# RTX 3060（12GB VRAM）クラスなら8Bモデルが快適に動く。.envのOLLAMA_MODELも合わせて変更する。
+docker compose --profile ollama-gpu exec ollama ollama pull llama3.1:8b
+# 日本語重視なら qwen2.5:7b も可
 ```
 
 6. DBスキーマはバックエンド起動時にFlywayが自動適用する（手動マイグレーション不要）。
