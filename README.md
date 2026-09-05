@@ -186,7 +186,7 @@ npm run lint          # ESLint
 ## Gitブランチ戦略
 
 - `main`: 本番環境用ブランチ
-- `develop`: 開発基軸ブランチ（Mac向けのネイティブOllama運用がデフォルト）
+- `develop`: 開発基軸ブランチ（Mac向けのネイティブOllama運用が既定）
 - `feature/*`: 機能開発用ブランチ
 - `windows`: Windows開発環境向けの常駐ブランチ。`gradlew.bat`・`.gitattributes`・
   GPU対応Ollamaコンテナ（`ollama-gpu`profile）など、Windows固有の差分をここに集約する。
