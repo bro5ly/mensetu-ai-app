@@ -27,7 +27,7 @@
 ## セットアップ
 
 ### 前提条件
-- Docker & Docker Compose
+- Docker & Docker Compose（Windowsは Docker Desktop、WSL2バックエンド推奨）
 - (オプション) VS Code + Dev Containers拡張
 
 ### 開発環境の起動
@@ -42,6 +42,7 @@ cd mensetu-ai-app
 ```bash
 cp .env.example .env
 ```
+（PowerShellの場合: `Copy-Item .env.example .env`）
 
 3. Docker Composeでサービスを起動（PostgreSQL / faster-whisper / VOICEVOX）
 ```bash
@@ -49,16 +50,26 @@ docker compose up -d
 ```
 **Ollamaはこのcomposeの対象外**（`docker-compose.yml`の`ollama`サービスはコメントアウト済み）。次のステップでホスト側にネイティブ起動する。
 
-4. Ollamaをホスト（Mac）にネイティブインストールして起動
+4. Ollamaをホストにネイティブインストールして起動
+
+**Mac**
 ```bash
 brew install ollama
 ollama serve
 ```
+
+**Windows**
+
+[ollama.com](https://ollama.com/download/windows) からインストーラーをダウンロードして実行する。
+インストール後は常駐サービスとして自動起動する（タスクトレイに表示される）ので、
+`ollama serve`を手動で叩く必要はない。起動していない場合はスタートメニューからOllamaを起動する。
+
 IDE + フロント + バックエンド + 各コンテナと同時にDocker上でCPU動作させるとメモリ不足で
 `llama-server ... signal: killed`（OOM kill）になりやすいため、ネイティブ起動を既定にしている。
-ホストの全RAMとMetal GPUが使え、CPU動作のコンテナより桁違いに速い。
+ホストの全RAM（Macであれば追加でMetal GPU）が使え、CPU動作のコンテナより桁違いに速い。
 `.env`の`OLLAMA_BASE_URL`はホストで直接`./gradlew bootRun`する場合は`http://localhost:11434`のまま、
-devcontainerを使う場合は`docker-compose.dev.yml`が既定で`http://host.docker.internal:11434`に向ける。
+devcontainerを使う場合は`docker-compose.dev.yml`が既定で`http://host.docker.internal:11434`に向ける
+（`host.docker.internal`はDocker Desktop for Mac/Windowsのどちらでも解決できる）。
 
 5. Ollamaモデルをダウンロード（初回のみ）
 ```bash
@@ -76,17 +87,31 @@ ollama pull llama3.2:3b
    `.env` の `POSTGRES_PASSWORD` と `application.yml` のデフォルトは揃えてあるため、
    ホストで直接 `./gradlew bootRun` する場合も追加の環境変数設定は不要。
 
+> **Windowsでクローンする場合の注意**: シェルスクリプト（`backend/gradlew`など）が
+> Gitの改行コード変換（CRLF化）で壊れないよう、リポジトリの`.gitattributes`で
+> 改行コードを固定している。クローンするだけで自動的に正しい改行コードになるため、
+> 追加設定は不要（`core.autocrlf`を独自に上書きしていなければ問題ない）。
+
 ### VSCode Dev Containerを使用する場合
 
 1. VS Codeで開く
 2. コマンドパレット（Cmd/Ctrl+Shift+P）から「Dev Containers: Reopen in Container」を選択
 3. コンテナが起動するまで待機
 
+Windowsでは、リポジトリを`C:\...`側ではなくWSL2のLinuxファイルシステム内
+（例: `~/projects/mensetu-ai-app`）にクローンしてから開くと、ファイルI/Oが大幅に速くなる。
+Docker DesktopのWSL2統合を有効にしていれば、Mac同様`host.docker.internal`が解決される。
+
 ### Backend開発
 
 ```bash
 cd backend
 ./gradlew bootRun
+```
+Windows（コマンドプロンプト/PowerShell、devcontainerを使わずホストで直接動かす場合）:
+```powershell
+cd backend
+.\gradlew.bat bootRun
 ```
 
 バックエンドは http://localhost:8080 で起動します。
@@ -105,8 +130,8 @@ npm run dev
 ### 動作確認手順
 
 1. `docker compose up -d`（PostgreSQL / faster-whisper / VOICEVOX）
-2. ホストで `ollama serve` を起動し、`ollama pull llama3.2:3b`
-3. `cd backend && ./gradlew bootRun`（Flywayがスキーマを作成）
+2. ホストでOllamaを起動し（Macは`ollama serve`、Windowsはインストール後は常駐サービスとして自動起動）、`ollama pull llama3.2:3b`
+3. `cd backend && ./gradlew bootRun`（Windowsは`.\gradlew.bat bootRun`。Flywayがスキーマを作成）
 4. `cd frontend && npm run dev`
 5. http://localhost:3000 を開く
 6. サイドバーの「会社を追加」→ 会社名を入力 →「検索する」でAIが企業概要をまとめる → 内容を確認・編集して「決定」→「この内容から質問を作成する」→「この質問をリストに追加する」
@@ -125,6 +150,7 @@ npm run dev
 cd backend
 ./gradlew test
 ```
+Windows: `cd backend` の後 `.\gradlew.bat test`
 
 ### Frontend
 ```bash

@@ -1,0 +1,17 @@
+# デフォルトはLFに正規化する（Windowsでcore.autocrlf=trueでもリポジトリ内はLFで統一）
+* text=auto eol=lf
+
+# Windows専用のバッチファイルはCRLFのまま保持する
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Gradle Wrapperのシェルスクリプトは実行ビット付きLF必須
+/backend/gradlew text eol=lf
+
+# バイナリはそのまま保持する
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
