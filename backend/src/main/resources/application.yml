@@ -26,6 +26,14 @@ spring:
     open-in-view: false
 
   ai:
+    # LLM 呼び出しの失敗（Ollama 未起動・モデル読み込み失敗など）は、10 回リトライすると
+    # ユーザーが 100 秒以上待たされてからエラー表示になる。ローカル開発の対話用途では
+    # 素早く失敗させたいので試行回数と待ち時間を絞る。
+    retry:
+      max-attempts: 2
+      backoff:
+        initial-interval: 1s
+        max-interval: 3s
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:

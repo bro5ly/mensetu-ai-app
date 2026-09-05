@@ -157,6 +157,24 @@ class PracticeTurnServiceTest {
     }
 
     @Test
+    void LLMが失敗するとPracticeCoachExceptionが伝播しアシスタント発話は保存されない() {
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(readySession()));
+        PracticeCoachLlm failing = (systemPrompt, history, userMessage) ->
+                Flux.error(new PracticeCoachException("AI サーバー(Ollama)に接続できませんでした。", null));
+        PracticeTurnService failingService = new PracticeTurnService(sessionRepository, messageRepository,
+                companyRepository, questionRepository, new PracticePromptFactory(), failing,
+                new AssistantMarkerParser());
+
+        assertThatThrownBy(() ->
+                failingService.handleUserTurn(sessionId, "IT業界に興味があります", new RecordingListener()))
+                .isInstanceOf(PracticeCoachException.class)
+                .hasMessageContaining("Ollama");
+
+        // ユーザー発話は保存されるが、アシスタント発話は保存されない（save は 1 回だけ）
+        verify(messageRepository, org.mockito.Mockito.times(1)).save(any(ChatMessage.class));
+    }
+
+    @Test
     void 終了済みセッションへの発言はConflict() {
         ChatSession ended = readySession();
         ended.setStatus(SessionStatus.ENDED);
