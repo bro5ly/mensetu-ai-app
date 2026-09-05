@@ -42,7 +42,7 @@
       }
     }
   },
-  "forwardPorts": [3000, 8080, 5432, 11434, 8000, 50021],
+  "forwardPorts": [3000, 8080, 5432, 8000, 50021],
   "portsAttributes": {
     "3000": {
       "label": "Next.js Frontend",
@@ -54,10 +54,6 @@
     },
     "5432": {
       "label": "PostgreSQL",
-      "onAutoForward": "ignore"
-    },
-    "11434": {
-      "label": "Ollama",
       "onAutoForward": "ignore"
     },
     "8000": {
