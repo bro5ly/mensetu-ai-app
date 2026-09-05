@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.interviewapp.company.CompanyDtos.GeneratedQuestions;
 import com.interviewapp.company.CompanyDtos.ResearchDraft;
-import com.interviewapp.company.WebSearchClient.SearchResult;
+import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -12,15 +12,15 @@ import org.junit.jupiter.api.Test;
 class CompanyResearchServiceTest {
 
     @Test
-    void 検索結果をLLMに渡して概要下書きを返す() {
-        AtomicReference<List<SearchResult>> passedResults = new AtomicReference<>();
-        WebSearchClient search = query -> List.of(
-                new SearchResult("t", "https://example.com", "snippet about " + query));
+    void 登録済みソースをLLMに渡して概要下書きを返す() {
+        AtomicReference<List<FetchedSourcePreview>> passedSources = new AtomicReference<>();
+        List<FetchedSourcePreview> sources =
+                List.of(new FetchedSourcePreview("https://example.com", "採用ページ", "若手に裁量がある"));
         CompanyResearchLlm llm = new CompanyResearchLlm() {
             @Override
-            public String summarizeOverview(String companyName, List<SearchResult> results,
+            public String summarizeOverview(String companyName, List<FetchedSourcePreview> s,
                     String currentOverview, String feedback) {
-                passedResults.set(results);
+                passedSources.set(s);
                 return "概要: " + companyName;
             }
 
@@ -30,39 +30,48 @@ class CompanyResearchServiceTest {
             }
         };
 
-        CompanyResearchService service = new CompanyResearchService(search, llm);
-        ResearchDraft draft = service.research("ABC商事", null, null);
+        CompanyResearchService service = new CompanyResearchService(llm);
+        ResearchDraft draft = service.research("ABC商事", sources, null, null);
 
         assertThat(draft.overview()).isEqualTo("概要: ABC商事");
-        assertThat(passedResults.get()).hasSize(1);
+        assertThat(passedSources.get()).hasSize(1);
     }
 
     @Test
-    void フィードバックはクエリに連結される() {
-        AtomicReference<String> query = new AtomicReference<>();
-        WebSearchClient search = q -> {
-            query.set(q);
-            return List.of();
+    void フィードバックと現在の下書きがそのままLLMに渡される() {
+        AtomicReference<String> passedFeedback = new AtomicReference<>();
+        AtomicReference<String> passedCurrent = new AtomicReference<>();
+        CompanyResearchLlm llm = new CompanyResearchLlm() {
+            @Override
+            public String summarizeOverview(String companyName, List<FetchedSourcePreview> s,
+                    String currentOverview, String feedback) {
+                passedCurrent.set(currentOverview);
+                passedFeedback.set(feedback);
+                return "概要";
+            }
+
+            @Override
+            public List<String> generateQuestions(String companyName, String overview) {
+                return List.of();
+            }
         };
-        CompanyResearchLlm llm = stubLlm("概要", List.of());
 
-        new CompanyResearchService(search, llm).research("ABC商事", "既存の下書き", "評価制度について");
+        new CompanyResearchService(llm).research("ABC商事", List.of(), "既存の下書き", "評価制度について");
 
-        assertThat(query.get()).isEqualTo("ABC商事 評価制度について");
+        assertThat(passedCurrent.get()).isEqualTo("既存の下書き");
+        assertThat(passedFeedback.get()).isEqualTo("評価制度について");
     }
 
     @Test
-    void 検索結果が空でもLLM要約を返す() {
-        CompanyResearchService service =
-                new CompanyResearchService(q -> List.of(), stubLlm("それでも概要", List.of()));
+    void ソースが空でもLLM要約を返す() {
+        CompanyResearchService service = new CompanyResearchService(stubLlm("それでも概要", List.of()));
 
-        assertThat(service.research("無名株式会社", null, null).overview()).isEqualTo("それでも概要");
+        assertThat(service.research("無名株式会社", List.of(), null, null).overview()).isEqualTo("それでも概要");
     }
 
     @Test
     void 質問生成はLLMの結果をそのまま返す() {
-        CompanyResearchService service = new CompanyResearchService(
-                q -> List.of(), stubLlm("概要", List.of("Q1", "Q2", "Q3")));
+        CompanyResearchService service = new CompanyResearchService(stubLlm("概要", List.of("Q1", "Q2", "Q3")));
 
         GeneratedQuestions generated = service.generateQuestions("ABC商事", "概要テキスト");
 
@@ -72,7 +81,7 @@ class CompanyResearchServiceTest {
     private static CompanyResearchLlm stubLlm(String overview, List<String> questions) {
         return new CompanyResearchLlm() {
             @Override
-            public String summarizeOverview(String companyName, List<SearchResult> results,
+            public String summarizeOverview(String companyName, List<FetchedSourcePreview> sources,
                     String currentOverview, String feedback) {
                 return overview;
             }

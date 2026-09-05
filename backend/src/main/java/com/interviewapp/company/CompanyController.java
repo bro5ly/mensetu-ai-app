@@ -8,6 +8,10 @@ import com.interviewapp.company.CompanyDtos.GeneratedQuestions;
 import com.interviewapp.company.CompanyDtos.ResearchCompanyRequest;
 import com.interviewapp.company.CompanyDtos.ResearchDraft;
 import com.interviewapp.company.CompanyDtos.UpdateCompanyRequest;
+import com.interviewapp.company.CompanySourceDtos.CreateSourceRequest;
+import com.interviewapp.company.CompanySourceDtos.FetchSourceRequest;
+import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
+import com.interviewapp.company.CompanySourceDtos.SourceResponse;
 import com.interviewapp.question.QuestionDtos.CreateQuestionRequest;
 import com.interviewapp.question.QuestionDtos.QuestionResponse;
 import com.interviewapp.question.QuestionService;
@@ -32,14 +36,17 @@ public class CompanyController {
     private final CompanyService companyService;
     private final QuestionService questionService;
     private final CompanyResearchService companyResearchService;
+    private final CompanySourceService companySourceService;
 
     public CompanyController(
             CompanyService companyService,
             QuestionService questionService,
-            CompanyResearchService companyResearchService) {
+            CompanyResearchService companyResearchService,
+            CompanySourceService companySourceService) {
         this.companyService = companyService;
         this.questionService = questionService;
         this.companyResearchService = companyResearchService;
+        this.companySourceService = companySourceService;
     }
 
     @GetMapping
@@ -58,11 +65,11 @@ public class CompanyController {
         return ResponseEntity.created(URI.create("/api/companies/" + created.id())).body(created);
     }
 
-    /** 企業リサーチ: 会社名から企業概要の下書きを生成する(未保存)。 */
+    /** 企業リサーチ: 会社名＋登録済みソースから企業概要の下書きを生成する(未保存)。 */
     @PostMapping("/research")
     public ResearchDraft research(@Valid @RequestBody ResearchCompanyRequest request) {
         return companyResearchService.research(
-                request.name(), request.currentOverview(), request.feedback());
+                request.name(), request.sources(), request.currentOverview(), request.feedback());
     }
 
     /** 企業リサーチ: 確認済みの企業概要から面接想定質問を生成する(未保存)。 */
@@ -94,5 +101,26 @@ public class CompanyController {
         companyService.findOrThrow(companyId);
         QuestionResponse created = questionService.add(companyId, request);
         return ResponseEntity.created(URI.create("/api/questions/" + created.id())).body(created);
+    }
+
+    /** 会社追加ウィザードのソース添付ステップ: URLをfetchするだけで保存しない。 */
+    @PostMapping("/sources/fetch")
+    public FetchedSourcePreview fetchSourcePreview(@Valid @RequestBody FetchSourceRequest request) {
+        return companySourceService.previewFetch(request.url());
+    }
+
+    @GetMapping("/{companyId}/sources")
+    public List<SourceResponse> listSources(@PathVariable UUID companyId) {
+        companyService.findOrThrow(companyId);
+        return companySourceService.listSources(companyId);
+    }
+
+    @PostMapping("/{companyId}/sources")
+    public ResponseEntity<SourceResponse> addSource(
+            @PathVariable UUID companyId, @Valid @RequestBody CreateSourceRequest request) {
+        companyService.findOrThrow(companyId);
+        SourceResponse created = companySourceService.addSource(companyId, request.url());
+        return ResponseEntity.created(URI.create("/api/companies/" + companyId + "/sources/" + created.id()))
+                .body(created);
     }
 }

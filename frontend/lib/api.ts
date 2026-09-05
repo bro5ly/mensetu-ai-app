@@ -2,12 +2,14 @@ import { API_BASE_URL } from "./config";
 import type {
   CompanyDetail,
   CompanySummary,
+  FetchedSourcePreview,
   GeneratedQuestions,
   PracticeEndResponse,
   PracticeSessionResponse,
   QuestionResponse,
   ResearchDraft,
   SessionDetail,
+  SourceResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -54,6 +56,7 @@ export const api = {
     name: string;
     overview?: string;
     questions?: string[];
+    sources?: FetchedSourcePreview[];
   }) =>
     request<CompanyDetail>("/api/companies", {
       method: "POST",
@@ -65,6 +68,7 @@ export const api = {
 
   researchCompany: (body: {
     name: string;
+    sources?: FetchedSourcePreview[];
     currentOverview?: string;
     feedback?: string;
   }) =>
@@ -78,6 +82,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ name, overview }),
     }),
+
+  fetchSourcePreview: (url: string) =>
+    request<FetchedSourcePreview>("/api/companies/sources/fetch", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+
+  listSources: (companyId: string) =>
+    request<SourceResponse[]>(`/api/companies/${companyId}/sources`),
+
+  addSource: (companyId: string, url: string) =>
+    request<SourceResponse>(`/api/companies/${companyId}/sources`, {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+
+  deleteSource: (sourceId: string) =>
+    request<void>(`/api/sources/${sourceId}`, { method: "DELETE" }),
 
   addQuestion: (companyId: string, questionText: string) =>
     request<QuestionResponse>(`/api/companies/${companyId}/questions`, {

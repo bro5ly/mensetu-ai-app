@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 
 import com.interviewapp.company.CompanyDtos.CompanyDetail;
 import com.interviewapp.company.CompanyDtos.CreateCompanyRequest;
+import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
+import com.interviewapp.company.CompanySourceDtos.SourceResponse;
 import com.interviewapp.question.QuestionDtos.CreateQuestionRequest;
 import com.interviewapp.question.QuestionDtos.QuestionResponse;
 import com.interviewapp.question.QuestionService;
@@ -32,6 +34,9 @@ class CompanyServiceTest {
     @Mock
     private QuestionService questionService;
 
+    @Mock
+    private CompanySourceService companySourceService;
+
     @InjectMocks
     private CompanyService companyService;
 
@@ -47,7 +52,7 @@ class CompanyServiceTest {
         });
 
         CompanyDetail detail = companyService.create(
-                new CreateCompanyRequest("ABC商事", "概要", List.of("Q1", "Q2", "Q3")));
+                new CreateCompanyRequest("ABC商事", "概要", List.of("Q1", "Q2", "Q3"), null));
 
         assertThat(detail.questions()).hasSize(3);
         ArgumentCaptor<CreateQuestionRequest> captor = ArgumentCaptor.forClass(CreateQuestionRequest.class);
@@ -72,7 +77,7 @@ class CompanyServiceTest {
         });
 
         CompanyDetail detail = companyService.create(
-                new CreateCompanyRequest("ABC商事", null, List.of("有効な質問1", "  ", "有効な質問2")));
+                new CreateCompanyRequest("ABC商事", null, List.of("有効な質問1", "  ", "有効な質問2"), null));
 
         assertThat(detail.questions()).hasSize(2);
         verify(questionService, times(2)).add(any(), any());
@@ -84,9 +89,41 @@ class CompanyServiceTest {
         saved.setId(UUID.randomUUID());
         when(companyRepository.saveAndFlush(any())).thenReturn(saved);
 
-        CompanyDetail detail = companyService.create(new CreateCompanyRequest("ABC商事", null, null));
+        CompanyDetail detail = companyService.create(new CreateCompanyRequest("ABC商事", null, null, null));
 
         assertThat(detail.questions()).isEmpty();
         verifyNoInteractions(questionService);
+    }
+
+    @Test
+    void sources付きで会社を作成するとソースも登録される() {
+        Company saved = new Company("ABC商事", "概要");
+        saved.setId(UUID.randomUUID());
+        when(companyRepository.saveAndFlush(any())).thenReturn(saved);
+        when(companySourceService.persistFetched(any(), any())).thenAnswer(inv -> {
+            FetchedSourcePreview preview = inv.getArgument(1);
+            return new SourceResponse(UUID.randomUUID(), saved.getId(), preview.url(), preview.title(),
+                    preview.content(), Instant.now(), Instant.now());
+        });
+
+        CompanyDetail detail = companyService.create(new CreateCompanyRequest("ABC商事", "概要", null, List.of(
+                new FetchedSourcePreview("https://example.com", "採用ページ", "本文テキスト"))));
+
+        assertThat(detail.sources()).hasSize(1);
+        ArgumentCaptor<FetchedSourcePreview> captor = ArgumentCaptor.forClass(FetchedSourcePreview.class);
+        verify(companySourceService, times(1)).persistFetched(eq(saved.getId()), captor.capture());
+        assertThat(captor.getValue().url()).isEqualTo("https://example.com");
+    }
+
+    @Test
+    void sourcesなしならソースは作られない() {
+        Company saved = new Company("ABC商事", null);
+        saved.setId(UUID.randomUUID());
+        when(companyRepository.saveAndFlush(any())).thenReturn(saved);
+
+        CompanyDetail detail = companyService.create(new CreateCompanyRequest("ABC商事", null, null, null));
+
+        assertThat(detail.sources()).isEmpty();
+        verifyNoInteractions(companySourceService);
     }
 }

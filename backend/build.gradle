@@ -38,6 +38,9 @@ dependencies {
     // Spring AI
     implementation 'org.springframework.ai:spring-ai-ollama-spring-boot-starter'
 
+    // 企業リサーチ: ソースURLの本文抽出
+    implementation 'org.jsoup:jsoup:1.17.2'
+
     // Database
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'

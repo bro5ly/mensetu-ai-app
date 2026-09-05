@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useReducer } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { CompanyDetail } from "@/lib/types";
+import type { CompanyDetail, FetchedSourcePreview } from "@/lib/types";
 
 export type WizardStep = "name" | "review" | "questions";
-type Busy = "search" | "research" | "generate" | "create" | null;
+type Busy = "search" | "research" | "generate" | "create" | "fetchSource" | null;
 
 interface State {
   step: WizardStep;
@@ -13,6 +13,8 @@ interface State {
   confirmed: boolean;
   researchOpen: boolean;
   feedback: string;
+  sourceUrl: string;
+  sources: FetchedSourcePreview[];
   generated: string[] | null;
   busy: Busy;
   error: string | null;
@@ -26,6 +28,8 @@ const initialState: State = {
   confirmed: false,
   researchOpen: false,
   feedback: "",
+  sourceUrl: "",
+  sources: [],
   generated: null,
   busy: null,
   error: null,
@@ -36,6 +40,9 @@ type Action =
   | { type: "setName"; value: string }
   | { type: "setOverview"; value: string }
   | { type: "setFeedback"; value: string }
+  | { type: "setSourceUrl"; value: string }
+  | { type: "sourceAdded"; source: FetchedSourcePreview }
+  | { type: "removeSource"; url: string }
   | { type: "toggleEdit" }
   | { type: "openResearch" }
   | { type: "cancelResearch" }
@@ -56,6 +63,17 @@ function reducer(state: State, action: Action): State {
       return { ...state, overview: action.value };
     case "setFeedback":
       return { ...state, feedback: action.value };
+    case "setSourceUrl":
+      return { ...state, sourceUrl: action.value, error: null };
+    case "sourceAdded":
+      return {
+        ...state,
+        busy: null,
+        sourceUrl: "",
+        sources: [...state.sources, action.source],
+      };
+    case "removeSource":
+      return { ...state, sources: state.sources.filter((s) => s.url !== action.url) };
     case "toggleEdit":
       return state.editing
         ? { ...state, editing: false }
@@ -98,9 +116,13 @@ export interface AddCompanyWizard {
   state: State;
   stepIndex: number;
   canSearch: boolean;
+  canAddSource: boolean;
   setName: (v: string) => void;
   setOverview: (v: string) => void;
   setFeedback: (v: string) => void;
+  setSourceUrl: (v: string) => void;
+  addSource: () => Promise<void>;
+  removeSource: (url: string) => void;
   toggleEdit: () => void;
   openResearch: () => void;
   cancelResearch: () => void;
@@ -116,17 +138,32 @@ export interface AddCompanyWizard {
 export function useAddCompanyWizard(): AddCompanyWizard {
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  const addSource = useCallback(async () => {
+    const url = state.sourceUrl.trim();
+    if (!url || state.busy) return;
+    dispatch({ type: "busy", value: "fetchSource" });
+    try {
+      const preview = await api.fetchSourcePreview(url);
+      dispatch({ type: "sourceAdded", source: preview });
+    } catch (e) {
+      dispatch({ type: "error", value: toMessage(e, "URLの内容を取得できませんでした") });
+    }
+  }, [state.sourceUrl, state.busy]);
+
   const search = useCallback(async () => {
     const name = state.name.trim();
     if (!name || state.busy) return;
     dispatch({ type: "busy", value: "search" });
     try {
-      const draft = await api.researchCompany({ name });
+      const draft = await api.researchCompany({
+        name,
+        sources: state.sources.length > 0 ? state.sources : undefined,
+      });
       dispatch({ type: "researched", overview: draft.overview });
     } catch (e) {
       dispatch({ type: "error", value: toMessage(e, "企業情報を検索できませんでした") });
     }
-  }, [state.name, state.busy]);
+  }, [state.name, state.sources, state.busy]);
 
   const reSearch = useCallback(async () => {
     const name = state.name.trim();
@@ -135,6 +172,7 @@ export function useAddCompanyWizard(): AddCompanyWizard {
     try {
       const draft = await api.researchCompany({
         name,
+        sources: state.sources.length > 0 ? state.sources : undefined,
         currentOverview: state.overview,
         feedback: state.feedback.trim() || undefined,
       });
@@ -142,7 +180,7 @@ export function useAddCompanyWizard(): AddCompanyWizard {
     } catch (e) {
       dispatch({ type: "error", value: toMessage(e, "再検索できませんでした") });
     }
-  }, [state.name, state.overview, state.feedback, state.busy]);
+  }, [state.name, state.sources, state.overview, state.feedback, state.busy]);
 
   const generate = useCallback(async () => {
     const overview = state.overview.trim();
@@ -164,13 +202,14 @@ export function useAddCompanyWizard(): AddCompanyWizard {
         name: state.name.trim(),
         overview: state.overview.trim() || undefined,
         questions: state.generated,
+        sources: state.sources.length > 0 ? state.sources : undefined,
       });
       return created;
     } catch (e) {
       dispatch({ type: "error", value: toMessage(e, "会社を追加できませんでした") });
       return null;
     }
-  }, [state.name, state.overview, state.generated, state.busy]);
+  }, [state.name, state.overview, state.generated, state.sources, state.busy]);
 
   const stepIndex = useMemo(
     () => (state.step === "name" ? 0 : state.step === "review" ? 1 : 2),
@@ -181,9 +220,13 @@ export function useAddCompanyWizard(): AddCompanyWizard {
     state,
     stepIndex,
     canSearch: state.name.trim().length > 0 && !state.busy,
+    canAddSource: state.sourceUrl.trim().length > 0 && !state.busy,
     setName: (v) => dispatch({ type: "setName", value: v }),
     setOverview: (v) => dispatch({ type: "setOverview", value: v }),
     setFeedback: (v) => dispatch({ type: "setFeedback", value: v }),
+    setSourceUrl: (v) => dispatch({ type: "setSourceUrl", value: v }),
+    addSource,
+    removeSource: (url) => dispatch({ type: "removeSource", url }),
     toggleEdit: () => dispatch({ type: "toggleEdit" }),
     openResearch: () => dispatch({ type: "openResearch" }),
     cancelResearch: () => dispatch({ type: "cancelResearch" }),

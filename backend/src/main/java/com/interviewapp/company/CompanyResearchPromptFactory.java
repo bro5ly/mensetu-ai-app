@@ -1,6 +1,6 @@
 package com.interviewapp.company;
 
-import com.interviewapp.company.WebSearchClient.SearchResult;
+import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
 import java.util.List;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -11,13 +11,16 @@ import org.springframework.util.StringUtils;
 @Component
 public class CompanyResearchPromptFactory {
 
+    /** プロンプト肥大化防止のため、ソース1件あたりの本文をこの文字数までに切り詰める。 */
+    private static final int SOURCE_CONTENT_LIMIT = 2000;
+
     private static final String OVERVIEW_SYSTEM = """
             あなたは就活生の面接対策を助けるリサーチャーです。
-            与えられた Web 検索結果をもとに、会社の「企業概要・社風・面接の傾向」を日本語でまとめます。
+            与えられたソース(ユーザーが登録したWebページの本文)をもとに、会社の「企業概要・社風・面接の傾向」を日本語でまとめます。
 
             ルール:
             - 「・」で始まる箇条書き 3〜5 点、その後に面接傾向を 1〜2 文。全体で 250 文字程度。
-            - 検索結果に書かれていないことは断定しない。曖昧なものは「〜とされる」等にする。
+            - ソースに書かれていないことは断定しない。曖昧なものは「〜とされる」等にする。
             - 「以下にまとめます」「〜について説明します」などの前置き・見出し・締めの文は書かない。1文字目から本文。
 
             出力例:
@@ -44,16 +47,21 @@ public class CompanyResearchPromptFactory {
     }
 
     public String overviewUserPrompt(
-            String companyName, List<SearchResult> results, String currentOverview, String feedback) {
+            String companyName, List<FetchedSourcePreview> sources, String currentOverview, String feedback) {
         StringBuilder sb = new StringBuilder();
         sb.append("会社名: ").append(companyName).append("\n\n");
 
-        sb.append("Web 検索結果:\n");
-        if (results == null || results.isEmpty()) {
-            sb.append("(有力な検索結果は得られませんでした。一般的な新卒面接の観点で補ってください)\n");
+        sb.append("登録されたソース:\n");
+        if (sources == null || sources.isEmpty()) {
+            sb.append("(ソースは登録されていません。一般的な新卒面接の観点で補ってください)\n");
         } else {
-            for (SearchResult r : results) {
-                sb.append("- ").append(r.title()).append(": ").append(r.snippet()).append("\n");
+            for (FetchedSourcePreview s : sources) {
+                String title = StringUtils.hasText(s.title()) ? s.title() : s.url();
+                String content = s.content() == null ? "" : s.content().trim();
+                if (content.length() > SOURCE_CONTENT_LIMIT) {
+                    content = content.substring(0, SOURCE_CONTENT_LIMIT);
+                }
+                sb.append("- ").append(title).append(": ").append(content).append("\n");
             }
         }
 

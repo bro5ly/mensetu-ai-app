@@ -24,6 +24,25 @@ export interface CompanyDetail {
   createdAt: string;
   updatedAt: string;
   questions: QuestionResponse[];
+  sources?: SourceResponse[];
+}
+
+/** 企業リサーチ: ユーザーが登録したURLをfetchした結果の下書き(未保存)。 */
+export interface FetchedSourcePreview {
+  url: string;
+  title: string | null;
+  content: string;
+}
+
+/** 会社に紐づく保存済みソース。 */
+export interface SourceResponse {
+  id: string;
+  companyId: string;
+  url: string;
+  title: string | null;
+  content: string;
+  fetchedAt: string;
+  createdAt: string;
 }
 
 export interface MessageResponse {
