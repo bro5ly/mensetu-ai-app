@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef } from "react";
 
 export interface Recorder {
   start: () => Promise<void>;
-  stop: () => void;
+  /**
+   * 録音を止める。MediaRecorder.stop() は残りバッファ分の最終 dataavailable を
+   * 非同期に発火してから stop イベントを発火する仕様のため、その最終チャンクの
+   * onChunk 呼び出しが完了するまで待ってから resolve する（呼び出し側が停止直後に
+   * end_turn を送っても、発話末尾の音声を送り切る前に届かないようにするため）。
+   */
+  stop: () => Promise<void>;
   isSupported: boolean;
 }
 
@@ -15,11 +21,28 @@ export function useRecorder(onChunk: (chunk: Blob) => void): Recorder {
   const onChunkRef = useRef(onChunk);
   onChunkRef.current = onChunk;
 
-  const stop = useCallback(() => {
-    recorderRef.current?.state !== "inactive" && recorderRef.current?.stop();
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+  const stop = useCallback((): Promise<void> => {
+    const recorder = recorderRef.current;
+    const stream = streamRef.current;
     recorderRef.current = null;
     streamRef.current = null;
+
+    if (!recorder || recorder.state === "inactive") {
+      stream?.getTracks().forEach((track) => track.stop());
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      recorder.addEventListener(
+        "stop",
+        () => {
+          stream?.getTracks().forEach((track) => track.stop());
+          resolve();
+        },
+        { once: true },
+      );
+      recorder.stop();
+    });
   }, []);
 
   const start = useCallback(async () => {
@@ -33,7 +56,11 @@ export function useRecorder(onChunk: (chunk: Blob) => void): Recorder {
     recorderRef.current = recorder;
   }, []);
 
-  useEffect(() => stop, [stop]);
+  useEffect(() => {
+    return () => {
+      void stop();
+    };
+  }, [stop]);
 
   const isSupported =
     typeof navigator !== "undefined" &&
