@@ -19,7 +19,7 @@
 
 - Backend: Java 21 / Spring Boot 3.x / Spring AI (ChatClient, `@Tool`, `.entity()`)
 - Frontend: Next.js (App Router) / TypeScript / React
-- LLM: Ollama (ローカル。開発中のデフォルトモデルは `llama3.2:3b` — メモリの小さい環境でも起動できるよう軽量モデルを既定にする。GPUがある環境では `OLLAMA_MODEL` を `llama3.1:8b` 等に上げる。日本語品質重視なら `qwen2.5:3b` も可)
+- LLM: Ollama (**Dockerではなくホスト側でネイティブ起動**する運用。`brew install ollama && ollama serve`。devcontainerからは `OLLAMA_BASE_URL=http://host.docker.internal:11434` でホストのOllamaに到達する(`docker-compose.dev.yml`が既定でこの値を設定する)。現在の開発機(Mac)では `llama3.2:3b` を使用。Docker上でCPU動作させる等メモリに余裕がない環境では `OLLAMA_MODEL` を `llama3.2:1b` に落とす、GPUがある環境では `llama3.1:8b` 等に上げる。日本語品質重視なら `qwen2.5:3b` も可)
 - STT: faster-whisper (Dockerコンテナ、REST経由で呼び出す)
 - TTS: VOICEVOX Engine (Dockerコンテナ、REST経由で呼び出す)
 - DB: PostgreSQL (Docker Compose。開発初期はH2でも可、本実装はPostgres前提でスキーマを書く)
@@ -57,7 +57,7 @@ DB/APIの詳細設計は `docs/interview_app_db_api_design.md` を作成済み�
 - Frontend Lint: `npm run lint` (コミット前に必ず実行)
 - Frontendユニットテスト: `npm run test` (Vitest。コミット前に必ず実行)
 - FrontendE2Eテスト: `npm run test:e2e` (Playwright。機能追加時に随時実行)
-- ローカルサービス一括起動: `docker compose up -d` (Ollama / faster-whisper / VOICEVOX / DB)
+- ローカルサービス一括起動: `docker compose up -d` (faster-whisper / VOICEVOX / DB)。**Ollamaはこの対象外**なのでホスト側で別途 `ollama serve` を起動しておくこと
 
 ## アーキテクチャ上の決定事項(変更する場合は要相談)
 
