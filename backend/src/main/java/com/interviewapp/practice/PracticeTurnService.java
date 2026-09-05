@@ -145,6 +145,9 @@ public class PracticeTurnService {
                 emitted.append(chunk);
                 listener.onAssistantChunk(chunk);
             }
+        } catch (PracticeCoachException e) {
+            log.warn("LLM ストリーミングが失敗しました: {}", e.getMessage());
+            throw e;
         } catch (RuntimeException e) {
             log.error("LLM ストリーミング中にエラーが発生しました", e);
             throw e;

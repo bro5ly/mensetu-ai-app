@@ -1,6 +1,7 @@
 package com.interviewapp.chat;
 
 import com.interviewapp.common.NotFoundException;
+import com.interviewapp.practice.PracticeCoachException;
 import com.interviewapp.practice.PracticeTurnListener;
 import com.interviewapp.practice.PracticeTurnService;
 import com.interviewapp.session.MessageType;
@@ -86,6 +87,10 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
                 case WsProtocol.FORCE_END -> handleForceEnd(session, chatSessionId);
                 default -> log.debug("未知の WS メッセージ type={}", inbound.type());
             }
+        } catch (PracticeCoachException e) {
+            // メッセージはそのままフロントに出せる日本語（Ollama 未起動・モデル読み込み失敗など）
+            log.warn("練習コーチ LLM の呼び出しに失敗: {}", e.getMessage());
+            send(session, codec.error(e.getMessage()));
         } catch (RuntimeException e) {
             log.error("WS メッセージ処理でエラー", e);
             send(session, codec.error("処理中にエラーが発生しました"));

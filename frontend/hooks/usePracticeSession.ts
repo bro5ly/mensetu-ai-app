@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { createAudioQueuePlayer } from "@/lib/audioQueuePlayer";
 import { PracticeSocket } from "@/lib/practiceSocket";
 import type {
   ChatMessage,
@@ -45,6 +46,7 @@ export function usePracticeSession() {
 
   const socketRef = useRef<PracticeSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
+  const audioPlayerRef = useRef(createAudioQueuePlayer());
 
   const appendChunk = useCallback((text: string) => {
     const id = streamingIdRef.current;
@@ -57,6 +59,7 @@ export function usePracticeSession() {
   const teardownSocket = useCallback(() => {
     socketRef.current?.close();
     socketRef.current = null;
+    audioPlayerRef.current.stop();
   }, []);
 
   useEffect(() => teardownSocket, [teardownSocket]);
@@ -108,6 +111,7 @@ export function usePracticeSession() {
             ]);
           },
           onAssistantChunk: appendChunk,
+          onAssistantAudio: (audio) => audioPlayerRef.current.enqueue(audio),
           onAssistantEnd: () => {
             const id = streamingIdRef.current;
             streamingIdRef.current = null;
@@ -166,9 +170,10 @@ export function usePracticeSession() {
   }, [recorder]);
 
   const stopRecording = useCallback(() => {
-    recorder.stop();
     setChatState("processing");
-    socketRef.current?.endTurn();
+    void recorder.stop().then(() => {
+      socketRef.current?.endTurn();
+    });
   }, [recorder]);
 
   const toggleMic = useCallback(() => {

@@ -11,12 +11,16 @@ services:
     # network_mode: service:postgres なので、他サービスは localhost ではなく
     # サービス名で参照する（postgres だけは netns 共有で localhost:5432 が使える）。
     environment:
-      OLLAMA_BASE_URL: http://ollama:11434
+      # 既定は Docker 内の ollama サービス。ホストでネイティブ Ollama を使う場合は
+      # プロジェクト直下の .env（gitignore 対象・マシン固有）に
+      #   OLLAMA_BASE_URL=http://host.docker.internal:11434
+      # を書けば上書きされる（他環境はこのデフォルトのまま動く）。
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       WHISPER_BASE_URL: http://faster-whisper:8000
       VOICEVOX_BASE_URL: http://voicevox:50021
     depends_on:
       - postgres
-      - ollama
+      # - ollama
       - faster-whisper
       - voicevox
 
@@ -37,15 +41,23 @@ services:
       timeout: 5s
       retries: 5
 
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    volumes:
-      - ollama-data:/root/.ollama
-    ports:
-      - "11434:11434"
-    # GPU設定はMacでは不要（CPU動作）
-    # Linux + NVIDIA GPU環境では docker-compose.dev.gpu.yml でオーバーライド可能
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+  #   ports:
+  #     - "11434:11434"
+  #   environment:
+  #     # 省メモリ設定。CPU 動作 + 割り当て RAM が少ない環境で llama-server が
+  #     # OOM kill (signal: killed) されるのを避ける。
+  #     - OLLAMA_FLASH_ATTENTION=1      # KV キャッシュのメモリを削減
+  #     - OLLAMA_KV_CACHE_TYPE=q8_0     # KV キャッシュを量子化してさらに削減
+  #     - OLLAMA_MAX_LOADED_MODELS=1    # モデルを同時に 1 つだけ常駐させる
+  #     - OLLAMA_NUM_PARALLEL=1         # 並列リクエスト分の追加 KV を確保しない
+  #     - OLLAMA_KEEP_ALIVE=5m
+  #   # GPU設定はMacでは不要（CPU動作）
+  #   # Linux + NVIDIA GPU環境では docker-compose.dev.gpu.yml でオーバーライド可能
 
   faster-whisper:
     image: fedirz/faster-whisper-server:latest-cpu
@@ -62,9 +74,13 @@ services:
     restart: unless-stopped
     ports:
       - "50021:50021"
-    command: --host 0.0.0.0
+    # command は上書きしない。イメージ既定の CMD が
+    #   gosu user python3 ./run.py --voicelib_dir ... --runtime_dir ... --host 0.0.0.0
+    # で、既に 0.0.0.0:50021 を LISTEN する。`command: --host 0.0.0.0` を渡すと
+    # entrypoint.sh の `exec "$@"` が `exec --host 0.0.0.0` となり
+    # 「exec: --: invalid option」で即終了 → 再起動ループになる。
 
 volumes:
   postgres-data:
-  ollama-data:
+  # ollama-data:
   whisper-cache:
