@@ -88,6 +88,54 @@ export function AddCompanyWizard({ onClose, onCreated }: Props) {
             placeholder="例：ABCコーポレーション"
             className="mb-4 w-full rounded-[10px] border border-line px-3.5 py-2.5 text-sm outline-none focus:border-accent"
           />
+
+          <p className="mb-1.5 text-[12px] font-semibold text-ink">
+            参考URL（任意）
+          </p>
+          <p className="mb-2 text-[11.5px] leading-relaxed text-ink-soft">
+            採用ページや口コミサイトのURLを追加すると、その内容も踏まえて要約します。
+          </p>
+          <div className="mb-2 flex gap-1.5">
+            <input
+              value={state.sourceUrl}
+              onChange={(e) => w.setSourceUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void w.addSource();
+              }}
+              placeholder="https://example.com/recruit"
+              className="flex-1 rounded-lg border border-line px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+            />
+            <button
+              type="button"
+              onClick={() => void w.addSource()}
+              disabled={!w.canAddSource}
+              className="rounded-lg border border-line bg-white px-3 py-2 text-[12px] font-semibold text-ink disabled:cursor-not-allowed disabled:text-ink-faint"
+            >
+              追加
+            </button>
+          </div>
+          {state.busy === "fetchSource" && <Spinner label="URLを取得中..." />}
+          {state.sources.length > 0 && (
+            <div className="mb-4 flex flex-col gap-1.5">
+              {state.sources.map((s) => (
+                <div
+                  key={s.url}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-panel-bubble px-3 py-1.5 text-[12px] text-ink"
+                >
+                  <span className="truncate">{s.title || s.url}</span>
+                  <button
+                    type="button"
+                    onClick={() => w.removeSource(s.url)}
+                    aria-label={`${s.title || s.url}を削除`}
+                    className="flex-shrink-0 text-ink-soft"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {state.busy === "search" ? (
             <Spinner label="企業情報を検索中..." />
           ) : (

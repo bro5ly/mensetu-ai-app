@@ -1,6 +1,6 @@
 package com.interviewapp.company;
 
-import com.interviewapp.company.WebSearchClient.SearchResult;
+import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -32,10 +32,10 @@ public class SpringAiCompanyResearchLlm implements CompanyResearchLlm {
 
     @Override
     public String summarizeOverview(
-            String companyName, List<SearchResult> results, String currentOverview, String feedback) {
+            String companyName, List<FetchedSourcePreview> sources, String currentOverview, String feedback) {
         String content = call(
                 prompts.overviewSystemPrompt(),
-                prompts.overviewUserPrompt(companyName, results, currentOverview, feedback),
+                prompts.overviewUserPrompt(companyName, sources, currentOverview, feedback),
                 OVERVIEW_OPTIONS,
                 "企業概要の生成");
         String trimmed = content == null ? "" : content.trim();

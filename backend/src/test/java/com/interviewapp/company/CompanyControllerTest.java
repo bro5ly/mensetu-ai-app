@@ -12,6 +12,8 @@ import com.interviewapp.company.CompanyDtos.CompanyDetail;
 import com.interviewapp.company.CompanyDtos.CompanySummary;
 import com.interviewapp.company.CompanyDtos.GeneratedQuestions;
 import com.interviewapp.company.CompanyDtos.ResearchDraft;
+import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
+import com.interviewapp.company.CompanySourceDtos.SourceResponse;
 import com.interviewapp.question.QuestionService;
 import java.time.Instant;
 import java.util.List;
@@ -38,6 +40,9 @@ class CompanyControllerTest {
     @MockitoBean
     private CompanyResearchService companyResearchService;
 
+    @MockitoBean
+    private CompanySourceService companySourceService;
+
     @Test
     void 会社一覧を返す() throws Exception {
         when(companyService.list()).thenReturn(List.of(
@@ -61,7 +66,7 @@ class CompanyControllerTest {
     void 会社作成は201とLocationを返す() throws Exception {
         UUID id = UUID.randomUUID();
         when(companyService.create(any())).thenReturn(
-                new CompanyDetail(id, "新会社", null, Instant.now(), Instant.now(), List.of()));
+                new CompanyDetail(id, "新会社", null, Instant.now(), Instant.now(), List.of(), List.of()));
 
         mockMvc.perform(post("/api/companies")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -80,7 +85,7 @@ class CompanyControllerTest {
 
     @Test
     void 企業リサーチは概要下書きを返す() throws Exception {
-        when(companyResearchService.research(any(), any(), any()))
+        when(companyResearchService.research(any(), any(), any(), any()))
                 .thenReturn(new ResearchDraft("・挑戦を後押しする文化\n面接では具体性が見られる。"));
 
         mockMvc.perform(post("/api/companies/research")
@@ -117,5 +122,32 @@ class CompanyControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"ABC商事\",\"overview\":\"\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void ソースfetchプレビューはタイトルと本文を返す() throws Exception {
+        when(companySourceService.previewFetch(any()))
+                .thenReturn(new FetchedSourcePreview("https://example.com", "採用ページ", "本文テキスト"));
+
+        mockMvc.perform(post("/api/companies/sources/fetch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"url\":\"https://example.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("採用ページ"))
+                .andExpect(jsonPath("$.content").value("本文テキスト"));
+    }
+
+    @Test
+    void ソース追加は201とLocationを返す() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+        when(companySourceService.addSource(any(), any())).thenReturn(new SourceResponse(
+                sourceId, companyId, "https://example.com", "採用ページ", "本文テキスト", Instant.now(), Instant.now()));
+
+        mockMvc.perform(post("/api/companies/{companyId}/sources", companyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"url\":\"https://example.com\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(sourceId.toString()));
     }
 }

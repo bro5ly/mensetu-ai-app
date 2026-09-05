@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.interviewapp.common.ConflictException;
 import com.interviewapp.company.Company;
 import com.interviewapp.company.CompanyRepository;
+import com.interviewapp.company.CompanySourceService;
 import com.interviewapp.question.InterviewQuestion;
 import com.interviewapp.question.InterviewQuestionRepository;
 import com.interviewapp.session.ChatMessage;
@@ -42,6 +43,8 @@ class PracticeTurnServiceTest {
     private CompanyRepository companyRepository;
     @Mock
     private InterviewQuestionRepository questionRepository;
+    @Mock
+    private CompanySourceService companySourceService;
 
     private PracticeTurnService service;
     private final UUID sessionId = UUID.randomUUID();
@@ -78,7 +81,8 @@ class PracticeTurnServiceTest {
     void setUp() {
         PracticeCoachLlm llm = (systemPrompt, history, userMessage) -> Flux.fromIterable(llmChunks);
         service = new PracticeTurnService(sessionRepository, messageRepository, companyRepository,
-                questionRepository, new PracticePromptFactory(), llm, new AssistantMarkerParser());
+                questionRepository, companySourceService, new PracticePromptFactory(), llm,
+                new AssistantMarkerParser());
 
         lenient().when(companyRepository.findById(companyId)).thenReturn(Optional.of(new Company("ABC社", null)));
         lenient().when(questionRepository.findById(questionId))
@@ -86,6 +90,8 @@ class PracticeTurnServiceTest {
         lenient().when(messageRepository.findBySessionIdOrderBySequenceNoAsc(sessionId))
                 .thenReturn(new ArrayList<>());
         lenient().when(messageRepository.save(any(ChatMessage.class))).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(companySourceService.findRelevant(any(), any(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of());
     }
 
     private ChatSession readySession() {
@@ -154,6 +160,32 @@ class PracticeTurnServiceTest {
         verify(messageRepository, org.mockito.Mockito.times(2)).save(saved.capture());
         assertThat(saved.getAllValues().get(0).getSequenceNo()).isEqualTo(3);
         assertThat(saved.getAllValues().get(1).getSequenceNo()).isEqualTo(4);
+    }
+
+    @Test
+    void 会社概要と関連ソースがシステムプロンプトに含まれる() {
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(readySession()));
+        Company companyWithOverview = new Company("ABC社", "・挑戦を後押しする文化がある");
+        companyWithOverview.setId(companyId);
+        when(companyRepository.findById(companyId)).thenReturn(Optional.of(companyWithOverview));
+        when(companySourceService.findRelevant(companyId, "志望動機は？", 3))
+                .thenReturn(List.of(new com.interviewapp.company.CompanySource(
+                        companyId, "https://example.com", "採用ページ", "新卒採用に力を入れている")));
+
+        List<String> capturedPrompt = new ArrayList<>();
+        PracticeCoachLlm recordingLlm = (systemPrompt, history, userMessage) -> {
+            capturedPrompt.add(systemPrompt);
+            return Flux.fromIterable(List.of("なるほど"));
+        };
+        PracticeTurnService recordingService = new PracticeTurnService(sessionRepository, messageRepository,
+                companyRepository, questionRepository, companySourceService, new PracticePromptFactory(),
+                recordingLlm, new AssistantMarkerParser());
+
+        recordingService.handleUserTurn(sessionId, "私の強みは継続力です", new RecordingListener());
+
+        assertThat(capturedPrompt).hasSize(1);
+        assertThat(capturedPrompt.get(0)).contains("・挑戦を後押しする文化がある");
+        assertThat(capturedPrompt.get(0)).contains("新卒採用に力を入れている");
     }
 
     @Test

@@ -4,6 +4,8 @@ import com.interviewapp.common.ConflictException;
 import com.interviewapp.common.NotFoundException;
 import com.interviewapp.company.Company;
 import com.interviewapp.company.CompanyRepository;
+import com.interviewapp.company.CompanySource;
+import com.interviewapp.company.CompanySourceService;
 import com.interviewapp.practice.AssistantMarkerParser.Result;
 import com.interviewapp.question.InterviewQuestion;
 import com.interviewapp.question.InterviewQuestionRepository;
@@ -32,10 +34,14 @@ public class PracticeTurnService {
 
     private static final Logger log = LoggerFactory.getLogger(PracticeTurnService.class);
 
+    /** 練習チャットのプロンプトに注入する関連ソースの件数上限。 */
+    private static final int RELEVANT_SOURCE_LIMIT = 3;
+
     private final ChatSessionRepository sessionRepository;
     private final ChatMessageRepository messageRepository;
     private final CompanyRepository companyRepository;
     private final InterviewQuestionRepository questionRepository;
+    private final CompanySourceService companySourceService;
     private final PracticePromptFactory promptFactory;
     private final PracticeCoachLlm llm;
     private final AssistantMarkerParser markerParser;
@@ -44,6 +50,7 @@ public class PracticeTurnService {
                                ChatMessageRepository messageRepository,
                                CompanyRepository companyRepository,
                                InterviewQuestionRepository questionRepository,
+                               CompanySourceService companySourceService,
                                PracticePromptFactory promptFactory,
                                PracticeCoachLlm llm,
                                AssistantMarkerParser markerParser) {
@@ -51,6 +58,7 @@ public class PracticeTurnService {
         this.messageRepository = messageRepository;
         this.companyRepository = companyRepository;
         this.questionRepository = questionRepository;
+        this.companySourceService = companySourceService;
         this.promptFactory = promptFactory;
         this.llm = llm;
         this.markerParser = markerParser;
@@ -85,14 +93,20 @@ public class PracticeTurnService {
     }
 
     private String buildSystemPrompt(ChatSession session) {
-        String companyName = companyRepository.findById(session.getCompanyId())
-                .map(Company::getName)
-                .orElse("(不明な会社)");
+        Company company = companyRepository.findById(session.getCompanyId()).orElse(null);
+        String companyName = company == null ? "(不明な会社)" : company.getName();
+        String companyOverview = company == null ? null : company.getOverview();
         String questionText = session.getQuestionId() == null ? "(質問未設定)"
                 : questionRepository.findById(session.getQuestionId())
                         .map(InterviewQuestion::getQuestionText)
                         .orElse("(質問未設定)");
-        return promptFactory.systemPrompt(companyName, questionText);
+
+        List<String> sourceExcerpts = company == null ? List.of()
+                : companySourceService.findRelevant(company.getId(), questionText, RELEVANT_SOURCE_LIMIT).stream()
+                        .map(CompanySource::getContent)
+                        .toList();
+
+        return promptFactory.systemPrompt(companyName, companyOverview, sourceExcerpts, questionText);
     }
 
     /**

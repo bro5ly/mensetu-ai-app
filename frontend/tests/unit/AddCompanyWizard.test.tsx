@@ -8,6 +8,7 @@ vi.mock("@/lib/api", () => ({
     researchCompany: vi.fn(),
     generateQuestions: vi.fn(),
     createCompany: vi.fn(),
+    fetchSourcePreview: vi.fn(),
   },
 }));
 
@@ -16,11 +17,13 @@ import { api } from "@/lib/api";
 const researchCompany = vi.mocked(api.researchCompany);
 const generateQuestions = vi.mocked(api.generateQuestions);
 const createCompany = vi.mocked(api.createCompany);
+const fetchSourcePreview = vi.mocked(api.fetchSourcePreview);
 
 beforeEach(() => {
   researchCompany.mockReset();
   generateQuestions.mockReset();
   createCompany.mockReset();
+  fetchSourcePreview.mockReset();
 });
 
 describe("AddCompanyWizard", () => {
@@ -81,6 +84,43 @@ describe("AddCompanyWizard", () => {
       overview: "・挑戦的な社風\n面接では具体性が見られる。",
       questions: ["志望動機を教えてください", "強みは何ですか", "逆質問はありますか"],
     });
+  });
+
+  it("参考URLを追加すると検索リクエストにソースが含まれる", async () => {
+    fetchSourcePreview.mockResolvedValue({
+      url: "https://example.com/recruit",
+      title: "採用ページ",
+      content: "新卒採用に力を入れています",
+    });
+    researchCompany.mockResolvedValue({ overview: "・挑戦的な社風" });
+
+    render(<AddCompanyWizard onClose={() => {}} onCreated={() => {}} />);
+
+    fireEvent.change(screen.getByPlaceholderText("例：ABCコーポレーション"), {
+      target: { value: "ABC商事" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("https://example.com/recruit"), {
+      target: { value: "https://example.com/recruit" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "追加" }));
+
+    expect(await screen.findByText("採用ページ")).toBeTruthy();
+    expect(fetchSourcePreview).toHaveBeenCalledWith("https://example.com/recruit");
+
+    fireEvent.click(screen.getByRole("button", { name: "検索する" }));
+
+    await waitFor(() =>
+      expect(researchCompany).toHaveBeenCalledWith({
+        name: "ABC商事",
+        sources: [
+          {
+            url: "https://example.com/recruit",
+            title: "採用ページ",
+            content: "新卒採用に力を入れています",
+          },
+        ],
+      }),
+    );
   });
 
   it("検索が失敗するとエラーを表示する", async () => {

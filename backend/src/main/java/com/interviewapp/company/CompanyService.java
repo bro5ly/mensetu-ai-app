@@ -5,6 +5,8 @@ import com.interviewapp.company.CompanyDtos.CompanyDetail;
 import com.interviewapp.company.CompanyDtos.CompanySummary;
 import com.interviewapp.company.CompanyDtos.CreateCompanyRequest;
 import com.interviewapp.company.CompanyDtos.UpdateCompanyRequest;
+import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
+import com.interviewapp.company.CompanySourceDtos.SourceResponse;
 import com.interviewapp.question.QuestionDtos.CreateQuestionRequest;
 import com.interviewapp.question.QuestionDtos.QuestionResponse;
 import com.interviewapp.question.QuestionService;
@@ -21,10 +23,15 @@ public class CompanyService {
 
     private final CompanyRepository companyRepository;
     private final QuestionService questionService;
+    private final CompanySourceService companySourceService;
 
-    public CompanyService(CompanyRepository companyRepository, QuestionService questionService) {
+    public CompanyService(
+            CompanyRepository companyRepository,
+            QuestionService questionService,
+            CompanySourceService companySourceService) {
         this.companyRepository = companyRepository;
         this.questionService = questionService;
+        this.companySourceService = companySourceService;
     }
 
     @Transactional(readOnly = true)
@@ -37,7 +44,8 @@ public class CompanyService {
     @Transactional(readOnly = true)
     public CompanyDetail get(UUID companyId) {
         Company company = findOrThrow(companyId);
-        return CompanyDetail.from(company, questionService.listByCompany(companyId));
+        return CompanyDetail.from(company, questionService.listByCompany(companyId),
+                companySourceService.listSources(companyId));
     }
 
     public CompanyDetail create(CreateCompanyRequest request) {
@@ -55,7 +63,18 @@ public class CompanyService {
             }
             questions = created;
         }
-        return CompanyDetail.from(company, questions);
+
+        List<SourceResponse> sources = List.of();
+        if (request.sources() != null && !request.sources().isEmpty()) {
+            List<SourceResponse> created = new ArrayList<>();
+            for (FetchedSourcePreview preview : request.sources()) {
+                if (preview != null && StringUtils.hasText(preview.url())) {
+                    created.add(companySourceService.persistFetched(company.getId(), preview));
+                }
+            }
+            sources = created;
+        }
+        return CompanyDetail.from(company, questions, sources);
     }
 
     public CompanyDetail update(UUID companyId, UpdateCompanyRequest request) {
@@ -66,7 +85,8 @@ public class CompanyService {
         if (request.overview() != null) {
             company.setOverview(request.overview());
         }
-        return CompanyDetail.from(company, questionService.listByCompany(companyId));
+        return CompanyDetail.from(company, questionService.listByCompany(companyId),
+                companySourceService.listSources(companyId));
     }
 
     public void delete(UUID companyId) {

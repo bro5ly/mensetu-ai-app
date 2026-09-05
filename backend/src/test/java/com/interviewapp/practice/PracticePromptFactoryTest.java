@@ -16,13 +16,32 @@ class PracticePromptFactoryTest {
 
     @Test
     void システムプロンプトに会社名と質問とマーカールールが含まれる() {
-        String prompt = factory.systemPrompt("ABCコーポレーション", "学生時代に力を入れたことを教えてください");
+        String prompt = factory.systemPrompt(
+                "ABCコーポレーション", null, List.of(), "学生時代に力を入れたことを教えてください");
 
         assertThat(prompt)
                 .contains("ABCコーポレーション")
                 .contains("学生時代に力を入れたことを教えてください")
                 .contains("<<ADVICE>>")
                 .contains("あなたから面接を終了してはいけません");
+    }
+
+    @Test
+    void 会社概要とソースが無ければ企業情報の見出しを含めない() {
+        String prompt = factory.systemPrompt("ABCコーポレーション", null, List.of(), "質問");
+
+        assertThat(prompt).doesNotContain("企業情報:");
+    }
+
+    @Test
+    void 会社概要とソースがあれば企業情報として埋め込む() {
+        String prompt = factory.systemPrompt(
+                "ABCコーポレーション", "従業員数1000人のIT企業", List.of("新卒採用に力を入れている"), "質問");
+
+        assertThat(prompt)
+                .contains("企業情報:")
+                .contains("従業員数1000人のIT企業")
+                .contains("新卒採用に力を入れている");
     }
 
     @Test

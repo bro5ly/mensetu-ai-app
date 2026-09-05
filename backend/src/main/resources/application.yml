@@ -47,6 +47,9 @@ app:
   voicevox:
     base-url: ${VOICEVOX_BASE_URL:http://localhost:50021}
     speaker: ${VOICEVOX_SPEAKER:3}
+  sources:
+    # 企業ソースURLの直接fetch(APIキー不要)。実際の外部ネットワーク呼び出しなので明示的にタイムアウトを設ける。
+    fetch-timeout-ms: ${SOURCES_FETCH_TIMEOUT_MS:10000}
 
 logging:
   level:

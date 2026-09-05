@@ -5,6 +5,7 @@ import com.interviewapp.session.ChatMessage;
 import com.interviewapp.session.MessageRole;
 import java.util.List;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 /**
  * 練習モードのシステムプロンプトと会話履歴を組み立てる純粋なファクトリ。
@@ -18,11 +19,15 @@ public class PracticePromptFactory {
 
     static final String ADVICE_MARKER = "<<ADVICE>>";
 
-    public String systemPrompt(String companyName, String questionText) {
+    /** プロンプト肥大化防止のため、ソース1件あたりの本文をこの文字数までに切り詰める。 */
+    private static final int SOURCE_CONTENT_LIMIT = 1500;
+
+    public String systemPrompt(
+            String companyName, String companyOverview, List<String> sourceExcerpts, String questionText) {
         return """
             あなたは新卒就活生の面接練習に付き合う面接コーチです。
             対象の会社は「%s」、今回練習する質問は次の1問だけです。
-
+            %s
             質問: %s
 
             進め方:
@@ -38,7 +43,31 @@ public class PracticePromptFactory {
             - コツや回答例など「アドバイス」を返すときは、応答の一番最初に %s と書いてください。
             - 通常の深掘りの質問や相づちには %s を付けないでください。
             """
-                .formatted(companyName, questionText, ADVICE_MARKER, ADVICE_MARKER);
+                .formatted(companyName, companyInfoBlock(companyOverview, sourceExcerpts), questionText,
+                        ADVICE_MARKER, ADVICE_MARKER);
+    }
+
+    /** 会社概要・関連ソースが無ければ空文字を返し、プロンプトに余計な見出しを残さない。 */
+    private String companyInfoBlock(String companyOverview, List<String> sourceExcerpts) {
+        boolean hasOverview = StringUtils.hasText(companyOverview);
+        boolean hasSources = sourceExcerpts != null && !sourceExcerpts.isEmpty();
+        if (!hasOverview && !hasSources) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("\n企業情報:\n");
+        if (hasOverview) {
+            sb.append(companyOverview.trim()).append("\n");
+        }
+        if (hasSources) {
+            for (String excerpt : sourceExcerpts) {
+                String trimmed = excerpt == null ? "" : excerpt.trim();
+                if (trimmed.length() > SOURCE_CONTENT_LIMIT) {
+                    trimmed = trimmed.substring(0, SOURCE_CONTENT_LIMIT);
+                }
+                sb.append("- ").append(trimmed).append("\n");
+            }
+        }
+        return sb.toString();
     }
 
     /** 保存済みメッセージ（古い順）を LLM 履歴に変換する。マーカーは既に除去済みの content を使う。 */

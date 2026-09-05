@@ -1,6 +1,6 @@
 package com.interviewapp.company;
 
-import com.interviewapp.company.WebSearchClient.SearchResult;
+import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
 import java.util.List;
 
 /**
@@ -11,17 +11,17 @@ import java.util.List;
 public interface CompanyResearchLlm {
 
     /**
-     * 検索結果(＋あれば現在の下書きとユーザーのフィードバック)から、企業概要・社風・面接傾向を
-     * 日本語でまとめ直す。
+     * ユーザーが登録したソース(URLをfetchして本文抽出したもの。0件もありうる)＋あれば現在の下書きと
+     * ユーザーのフィードバックから、企業概要・社風・面接傾向を日本語でまとめ直す。
      *
      * @param companyName     会社名
-     * @param results         Web 検索結果(0 件もありうる)
-     * @param currentOverview 既存の下書き(再検索時のみ。無ければ null/空)
+     * @param sources         登録済みソース(0 件もありうる)
+     * @param currentOverview 既存の下書き(再生成時のみ。無ければ null/空)
      * @param feedback        ユーザーが反映してほしい観点(任意。無ければ null/空)
      * @return まとめ直したテキスト
      */
     String summarizeOverview(
-            String companyName, List<SearchResult> results, String currentOverview, String feedback);
+            String companyName, List<FetchedSourcePreview> sources, String currentOverview, String feedback);
 
     /**
      * 会社概要から面接想定質問をちょうど 3 つ生成する。
