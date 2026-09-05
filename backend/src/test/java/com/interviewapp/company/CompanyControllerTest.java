@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.interviewapp.common.NotFoundException;
 import com.interviewapp.company.CompanyDtos.CompanyDetail;
 import com.interviewapp.company.CompanyDtos.CompanySummary;
+import com.interviewapp.company.CompanyDtos.GeneratedQuestions;
+import com.interviewapp.company.CompanyDtos.ResearchDraft;
 import com.interviewapp.question.QuestionService;
 import java.time.Instant;
 import java.util.List;
@@ -32,6 +34,9 @@ class CompanyControllerTest {
 
     @MockitoBean
     private QuestionService questionService;
+
+    @MockitoBean
+    private CompanyResearchService companyResearchService;
 
     @Test
     void 会社一覧を返す() throws Exception {
@@ -70,6 +75,47 @@ class CompanyControllerTest {
         mockMvc.perform(post("/api/companies")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 企業リサーチは概要下書きを返す() throws Exception {
+        when(companyResearchService.research(any(), any(), any()))
+                .thenReturn(new ResearchDraft("・挑戦を後押しする文化\n面接では具体性が見られる。"));
+
+        mockMvc.perform(post("/api/companies/research")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"ABC商事\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.overview").value("・挑戦を後押しする文化\n面接では具体性が見られる。"));
+    }
+
+    @Test
+    void 企業リサーチは会社名が空なら400() throws Exception {
+        mockMvc.perform(post("/api/companies/research")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 質問生成は3件の配列を返す() throws Exception {
+        when(companyResearchService.generateQuestions(any(), any()))
+                .thenReturn(new GeneratedQuestions(List.of("志望動機は？", "強みは？", "逆質問は？")));
+
+        mockMvc.perform(post("/api/companies/generate-questions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"ABC商事\",\"overview\":\"概要\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questions.length()").value(3))
+                .andExpect(jsonPath("$.questions[0]").value("志望動機は？"));
+    }
+
+    @Test
+    void 質問生成はoverviewが空なら400() throws Exception {
+        mockMvc.perform(post("/api/companies/generate-questions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"ABC商事\",\"overview\":\"\"}"))
                 .andExpect(status().isBadRequest());
     }
 }

@@ -8,6 +8,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     command: sleep infinity
     network_mode: service:postgres
+    # network_mode: service:postgres なので、他サービスは localhost ではなく
+    # サービス名で参照する（postgres だけは netns 共有で localhost:5432 が使える）。
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      WHISPER_BASE_URL: http://faster-whisper:8000
+      VOICEVOX_BASE_URL: http://voicevox:50021
     depends_on:
       - postgres
       - ollama
@@ -38,13 +44,8 @@ services:
       - ollama-data:/root/.ollama
     ports:
       - "11434:11434"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # GPU設定はMacでは不要（CPU動作）
+    # Linux + NVIDIA GPU環境では docker-compose.dev.gpu.yml でオーバーライド可能
 
   faster-whisper:
     image: fedirz/faster-whisper-server:latest-cpu

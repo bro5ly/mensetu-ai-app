@@ -8,9 +8,9 @@ interface Props {
 
 const CAPTION: Record<ChatState, string> = {
   idle: "タップして話す",
-  recording: "タップして送信",
-  processing: "認識しています...",
-  responding: "コーチが話しています...",
+  recording: "タップして停止",
+  processing: "文字起こし中...",
+  responding: "AIコーチが応答中...",
 };
 
 export function MicButton({ chatState, disabled, onClick }: Props) {
@@ -20,25 +20,36 @@ export function MicButton({ chatState, disabled, onClick }: Props) {
     <div className="flex flex-col items-center gap-3">
       <div className="relative flex items-center justify-center">
         {recording && (
-          <span className="absolute h-[76px] w-[76px] animate-ping rounded-full bg-violet-400/30" />
+          <span
+            className="absolute h-[76px] w-[76px] rounded-full bg-accent-ring"
+            style={{ animation: "pulseRing 1.6s ease-out infinite" }}
+          />
         )}
         <button
           type="button"
           onClick={onClick}
           disabled={disabled}
           aria-label={recording ? "録音を停止して送信" : "録音を開始"}
-          className={`flex h-16 w-16 items-center justify-center rounded-full shadow-lg transition disabled:cursor-not-allowed disabled:opacity-40 ${
-            recording ? "bg-violet-700" : "bg-violet-600 hover:bg-violet-700"
+          className={`relative flex h-[76px] w-[76px] items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed ${
+            recording
+              ? "bg-accent-strong"
+              : disabled
+                ? "bg-panel-muted"
+                : "bg-accent"
           }`}
         >
           {recording ? (
-            <span className="h-5 w-5 rounded bg-white" />
+            <span className="h-[22px] w-[22px] rounded-md bg-white" />
           ) : (
-            <span className="h-7 w-5 rounded-full bg-white" />
+            <span
+              className={`h-[30px] w-5 rounded-[10px] ${
+                disabled ? "bg-[oklch(0.7_0.006_60)]" : "bg-white"
+              }`}
+            />
           )}
         </button>
       </div>
-      <span className="text-xs font-medium text-neutral-500">
+      <span className="text-[12.5px] font-medium text-ink-soft">
         {CAPTION[chatState]}
       </span>
     </div>

@@ -195,6 +195,10 @@ export function usePracticeSession() {
     }
   }, [sessionId, messages.length, teardownSocket]);
 
+  const restartSame = useCallback(() => {
+    if (active) void openQuestion(active);
+  }, [active, openQuestion]);
+
   const reset = useCallback(() => {
     teardownSocket();
     setPhase("selecting");
@@ -220,6 +224,7 @@ export function usePracticeSession() {
     sendText,
     toggleMic,
     endPractice,
+    restartSame,
     reset,
     clearError: () => setError(null),
   };

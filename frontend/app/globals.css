@@ -1,23 +1,21 @@
+@import url("https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* next/font を使わずに済むよう、Google Fonts をフォールバック付きで読み込む */
+  --font-work-sans: "Work Sans";
+  color-scheme: light;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: #ffffff;
+  color: oklch(0.22 0.008 60);
+  font-family: var(--font-work-sans), system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
 }
 
 @layer utilities {

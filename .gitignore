@@ -59,3 +59,7 @@ docker-compose.override.yml
 *.swp
 *.swo
 *~
+
+# Claude Design export: keep the .dc.html prototypes, drop the debug screenshots
+ui-design/debug/
+ui-design/.thumbnail

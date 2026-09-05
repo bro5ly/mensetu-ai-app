@@ -45,6 +45,58 @@ describe("api", () => {
     );
   });
 
+  it("企業リサーチはnameをPOSTする", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ overview: "概要テキスト" }));
+
+    const draft = await api.researchCompany({ name: "ABC商事" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/companies/research",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "ABC商事" }),
+      }),
+    );
+    expect(draft.overview).toBe("概要テキスト");
+  });
+
+  it("質問生成はnameとoverviewをPOSTする", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ questions: ["Q1", "Q2", "Q3"] }));
+
+    const result = await api.generateQuestions("ABC商事", "概要");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/companies/generate-questions",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "ABC商事", overview: "概要" }),
+      }),
+    );
+    expect(result.questions).toHaveLength(3);
+  });
+
+  it("会社作成はname/overview/questionsをPOSTする", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: "c1", questions: [] }));
+
+    await api.createCompany({
+      name: "ABC商事",
+      overview: "概要",
+      questions: ["Q1", "Q2"],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/companies",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "ABC商事",
+          overview: "概要",
+          questions: ["Q1", "Q2"],
+        }),
+      }),
+    );
+  });
+
   it("エラーレスポンスのmessageをApiErrorに変換する", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ message: "会社が見つかりません" }, { status: 404 }),

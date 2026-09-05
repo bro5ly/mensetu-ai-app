@@ -1,0 +1,25 @@
+{
+  // --- メモリ節約(このdev containerはRAMが逼迫しているため) ---
+  // Java言語サーバーのヒープを既定の2G→768mに(補完・診断には十分)
+  "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx768m -Xms128m -Xlog:disable",
+  // Gradle build server(常駐JVM)を止める。gradle.propertiesで daemon=false にしてあるので不要
+  "java.gradle.buildServer.enabled": "off",
+  "java.import.gradle.java.home": "/usr/lib/jvm/java-21-openjdk-arm64",
+  "java.import.gradle.home": "",
+  // 同時ビルド数を絞る
+  "java.maxConcurrentBuilds": 1,
+  // クラスパス変更を自動反映せず、明示操作したときだけ更新(不要な再ビルドを防ぐ)
+  "java.configuration.updateBuildConfiguration": "interactive",
+  // 参照数/実装数のCodeLensを無効化(インデックス負荷を下げる)
+  "java.referencesCodeLens.enabled": false,
+  "java.implementationsCodeLens.enabled": false,
+  // ファイル監視から除外してfileWatcherのメモリを下げる
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/node_modules/**": true,
+    "**/backend/build/**": true,
+    "**/backend/bin/**": true,
+    "**/backend/.gradle/**": true,
+    "**/frontend/.next/**": true
+  }
+}

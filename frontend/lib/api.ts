@@ -2,9 +2,11 @@ import { API_BASE_URL } from "./config";
 import type {
   CompanyDetail,
   CompanySummary,
+  GeneratedQuestions,
   PracticeEndResponse,
   PracticeSessionResponse,
   QuestionResponse,
+  ResearchDraft,
   SessionDetail,
 } from "./types";
 
@@ -48,14 +50,34 @@ export const api = {
   getCompany: (companyId: string) =>
     request<CompanyDetail>(`/api/companies/${companyId}`),
 
-  createCompany: (name: string, overview?: string) =>
+  createCompany: (input: {
+    name: string;
+    overview?: string;
+    questions?: string[];
+  }) =>
     request<CompanyDetail>("/api/companies", {
       method: "POST",
-      body: JSON.stringify({ name, overview }),
+      body: JSON.stringify(input),
     }),
 
   deleteCompany: (companyId: string) =>
     request<void>(`/api/companies/${companyId}`, { method: "DELETE" }),
+
+  researchCompany: (body: {
+    name: string;
+    currentOverview?: string;
+    feedback?: string;
+  }) =>
+    request<ResearchDraft>("/api/companies/research", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  generateQuestions: (name: string, overview: string) =>
+    request<GeneratedQuestions>("/api/companies/generate-questions", {
+      method: "POST",
+      body: JSON.stringify({ name, overview }),
+    }),
 
   addQuestion: (companyId: string, questionText: string) =>
     request<QuestionResponse>(`/api/companies/${companyId}/questions`, {
