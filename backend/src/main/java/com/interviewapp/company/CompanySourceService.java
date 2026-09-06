@@ -1,9 +1,12 @@
 package com.interviewapp.company;
 
 import com.interviewapp.common.NotFoundException;
+import com.interviewapp.company.CompanySourceDtos.BatchAddSourcesResponse;
+import com.interviewapp.company.CompanySourceDtos.FailedSource;
 import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
 import com.interviewapp.company.CompanySourceDtos.SourceResponse;
 import com.interviewapp.company.UrlContentFetcher.ExtractedContent;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -14,9 +17,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 会社に紐づくソース(URL登録→サーバーが直接fetchして本文抽出したもの)の登録・取得・削除を扱う。
+ *
+ * <p><b>重要</b>: URLのfetchはネットワークI/Oで、相手サーバーが遅い/応答しない場合はJsoupの
+ * タイムアウトを超えてハングしうる(特にDNS解決はJavaの標準APIではタイムアウトが効きにくい)。
+ * このクラス全体を{@code @Transactional}にしてfetchまで含めてしまうと、その間ずっとDBコネクション
+ * プールの接続を1つ握り続けてしまい、プールが枯渇すると他の無関係なAPI(会社一覧取得など)まで
+ * 接続待ちでハングする。そのためfetch自体はトランザクションの外で行い、DB保存だけを
+ * (Spring Data JPAのリポジトリメソッドが自前で持つ)短いトランザクションに任せる。</p>
  */
 @Service
-@Transactional
 public class CompanySourceService {
 
     private final CompanySourceRepository sourceRepository;
@@ -27,8 +36,7 @@ public class CompanySourceService {
         this.urlContentFetcher = urlContentFetcher;
     }
 
-    /** ウィザードのソース添付ステップ用: fetchするだけで保存しない。 */
-    @Transactional(readOnly = true)
+    /** ウィザードのソース添付ステップ用: fetchするだけで保存しない(DBアクセスなし)。 */
     public FetchedSourcePreview previewFetch(String url) {
         ExtractedContent extracted = urlContentFetcher.fetch(url.trim());
         return FetchedSourcePreview.from(url.trim(), extracted);
@@ -41,7 +49,25 @@ public class CompanySourceService {
         return SourceResponse.from(sourceRepository.save(source));
     }
 
+    /**
+     * 既存の会社にソースをまとめて追加する(URLごとにfetch)。1件の失敗が他のURLを巻き込まないよう、
+     * 失敗したURLは {@code failed} に振り分けて処理を継続する。
+     */
+    public BatchAddSourcesResponse addSources(UUID companyId, List<String> urls) {
+        List<SourceResponse> added = new ArrayList<>();
+        List<FailedSource> failed = new ArrayList<>();
+        for (String url : urls) {
+            try {
+                added.add(addSource(companyId, url));
+            } catch (RuntimeException e) {
+                failed.add(new FailedSource(url, e.getMessage()));
+            }
+        }
+        return new BatchAddSourcesResponse(added, failed);
+    }
+
     /** ウィザードで既にfetch済みの内容をそのまま永続化する(会社の一括作成時、再fetchはしない)。 */
+    @Transactional
     public SourceResponse persistFetched(UUID companyId, FetchedSourcePreview preview) {
         CompanySource source = new CompanySource(companyId, preview.url(), preview.title(), preview.content());
         return SourceResponse.from(sourceRepository.save(source));
@@ -54,6 +80,8 @@ public class CompanySourceService {
                 .toList();
     }
 
+    /** DBアクセスのみ(ネットワークI/Oなし)なので、検索と削除をまとめて短いトランザクションにする。 */
+    @Transactional
     public void deleteSource(UUID sourceId) {
         CompanySource source = findOrThrow(sourceId);
         sourceRepository.delete(source);

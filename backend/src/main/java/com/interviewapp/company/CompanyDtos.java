@@ -40,8 +40,12 @@ public final class CompanyDtos {
             String feedback) {
     }
 
-    /** 企業リサーチの結果(未保存)。 */
-    public record ResearchDraft(String overview) {
+    /**
+     * 企業リサーチの結果(未保存)。{@code sources} はリクエストで渡されたソースに、
+     * SearXNGで自動的に見つけたソースを加えた最終的な一覧(ユーザー提供分が先頭)。
+     * ウィザードはこれを {@code state.sources} に反映し、最終的な会社作成時にそのまま使う。
+     */
+    public record ResearchDraft(String overview, List<FetchedSourcePreview> sources) {
     }
 
     /** 企業概要から面接想定質問を生成するリクエスト。 */

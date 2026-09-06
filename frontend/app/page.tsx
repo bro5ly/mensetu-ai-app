@@ -63,10 +63,13 @@ export default function Home() {
             active={session.active}
             messages={session.messages}
             chatState={session.chatState}
+            partialTranscript={session.partialTranscript}
             micSupported={session.micSupported}
             error={session.error}
+            audioPlaying={session.audioPlaying}
             onToggleMic={session.toggleMic}
             onSendText={session.sendText}
+            onStopAudio={session.stopAudio}
             onEnd={() => void session.endPractice()}
             onDeleteQuestion={() => void handleDeleteQuestion()}
             onDismissError={session.clearError}

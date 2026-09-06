@@ -35,4 +35,22 @@ describe("MessageBubble", () => {
     expect(screen.queryByText("アドバイス")).toBeNull();
     expect(screen.getByText("もう少し詳しく教えてください")).toBeTruthy();
   });
+
+  it("streaming中で本文がまだ空なら「生成中...」を表示する", () => {
+    render(<MessageBubble message={message({ content: "", streaming: true })} />);
+    expect(screen.getByText("生成中...")).toBeTruthy();
+    expect(screen.queryByText("再生中")).toBeNull();
+  });
+
+  it("streaming中で本文が表示され始めたら「再生中」に切り替わる", () => {
+    render(<MessageBubble message={message({ content: "なるほど", streaming: true })} />);
+    expect(screen.getByText("再生中")).toBeTruthy();
+    expect(screen.queryByText("生成中...")).toBeNull();
+  });
+
+  it("streamingでなければ生成中/再生中いずれも表示しない", () => {
+    render(<MessageBubble message={message({ content: "確定した本文", streaming: false })} />);
+    expect(screen.queryByText("再生中")).toBeNull();
+    expect(screen.queryByText("生成中...")).toBeNull();
+  });
 });

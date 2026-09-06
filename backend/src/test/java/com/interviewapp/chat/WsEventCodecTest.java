@@ -38,4 +38,10 @@ class WsEventCodecTest {
         assertThat(codec.assistantMessageEnd()).contains("\"type\":\"assistant_message_end\"");
         assertThat(codec.sessionEnded("USER_ENDED")).contains("\"reason\":\"USER_ENDED\"");
     }
+
+    @Test
+    void partialTranscriptのJSON形状() {
+        assertThat(codec.partialTranscript("学生時代に"))
+                .contains("\"type\":\"partial_transcript\"", "\"text\":\"学生時代に\"");
+    }
 }

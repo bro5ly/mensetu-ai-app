@@ -12,6 +12,8 @@ import com.interviewapp.company.CompanyDtos.CompanyDetail;
 import com.interviewapp.company.CompanyDtos.CompanySummary;
 import com.interviewapp.company.CompanyDtos.GeneratedQuestions;
 import com.interviewapp.company.CompanyDtos.ResearchDraft;
+import com.interviewapp.company.CompanySourceDtos.BatchAddSourcesResponse;
+import com.interviewapp.company.CompanySourceDtos.FailedSource;
 import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
 import com.interviewapp.company.CompanySourceDtos.SourceResponse;
 import com.interviewapp.question.QuestionService;
@@ -86,7 +88,7 @@ class CompanyControllerTest {
     @Test
     void 企業リサーチは概要下書きを返す() throws Exception {
         when(companyResearchService.research(any(), any(), any(), any()))
-                .thenReturn(new ResearchDraft("・挑戦を後押しする文化\n面接では具体性が見られる。"));
+                .thenReturn(new ResearchDraft("・挑戦を後押しする文化\n面接では具体性が見られる。", List.of()));
 
         mockMvc.perform(post("/api/companies/research")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -149,5 +151,32 @@ class CompanyControllerTest {
                         .content("{\"url\":\"https://example.com\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(sourceId.toString()));
+    }
+
+    @Test
+    void ソース一括追加は成功と失敗を分けて返す() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        SourceResponse added = new SourceResponse(
+                UUID.randomUUID(), companyId, "https://a.example.com", "A", "本文A", Instant.now(), Instant.now());
+        when(companySourceService.addSources(any(), any())).thenReturn(
+                new BatchAddSourcesResponse(
+                        List.of(added), List.of(new FailedSource("https://b.example.com", "取得に失敗しました"))));
+
+        mockMvc.perform(post("/api/companies/{companyId}/sources/batch", companyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"urls\":[\"https://a.example.com\",\"https://b.example.com\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.added.length()").value(1))
+                .andExpect(jsonPath("$.added[0].url").value("https://a.example.com"))
+                .andExpect(jsonPath("$.failed.length()").value(1))
+                .andExpect(jsonPath("$.failed[0].url").value("https://b.example.com"));
+    }
+
+    @Test
+    void ソース一括追加はurlsが空なら400() throws Exception {
+        mockMvc.perform(post("/api/companies/{companyId}/sources/batch", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"urls\":[]}"))
+                .andExpect(status().isBadRequest());
     }
 }

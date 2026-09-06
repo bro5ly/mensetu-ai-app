@@ -74,6 +74,26 @@ class CompanySourceServiceTest {
     }
 
     @Test
+    void addSourcesは一部が失敗しても残りを追加する() {
+        when(urlContentFetcher.fetch("https://a.example.com"))
+                .thenReturn(new ExtractedContent("A", "本文A"));
+        when(urlContentFetcher.fetch("https://b.example.com"))
+                .thenThrow(new IllegalStateException("取得に失敗しました"));
+        when(urlContentFetcher.fetch("https://c.example.com"))
+                .thenReturn(new ExtractedContent("C", "本文C"));
+        when(sourceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = service.addSources(
+                companyId, List.of("https://a.example.com", "https://b.example.com", "https://c.example.com"));
+
+        assertThat(result.added()).extracting(SourceResponse::url)
+                .containsExactly("https://a.example.com", "https://c.example.com");
+        assertThat(result.failed()).hasSize(1);
+        assertThat(result.failed().get(0).url()).isEqualTo("https://b.example.com");
+        assertThat(result.failed().get(0).message()).contains("取得に失敗");
+    }
+
+    @Test
     void persistFetchedは再fetchせずそのまま保存する() {
         when(sourceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         FetchedSourcePreview preview = new FetchedSourcePreview("https://example.com", "採用ページ", "本文テキスト");

@@ -1,0 +1,19 @@
+# SearXNGの最小設定。企業リサーチのバックエンドから叩くJSON APIとしてのみ使う想定
+# (ローカルのみに公開・信頼できるクライアント1つのみ)なので、公開インスタンス向けの
+# bot対策(レート制限)はここでは無効化している。settings.yml をこのファイルで丸ごと
+# 上書きするのではなく use_default_settings で SearXNG 本体の既定値をベースに、
+# 必要な項目だけ上書きする(公式ドキュメント推奨の方式)。
+use_default_settings: true
+
+server:
+  # 公開しない自己ホスト用の適当な値でよい(外部に露出させないこと)。
+  secret_key: "mensetu-ai-searxng-local-only-dev-secret"
+  # レート制限/bot判定(Valkey/Redisが必要になる)を無効化。ローカルの信頼できる
+  # バックエンドからのみ叩かれる前提なので不要。
+  limiter: false
+
+search:
+  # 既定はHTMLのみ。バックエンドから GET /search?format=json で叩けるようにする。
+  formats:
+    - html
+    - json

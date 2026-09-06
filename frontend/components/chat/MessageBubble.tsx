@@ -1,7 +1,10 @@
 import type { ChatMessage } from "@/lib/types";
 
-/** ui-design の「再生中」イコライザー表示。TTS 再生の代わりにストリーミング中に出す。 */
-function PlayingIndicator() {
+/**
+ * ui-design の「再生中」イコライザー表示。音声がまだ用意できていない(本文がまだ空)間は
+ * 「生成中...」、対応する文の音声が再生され始めて本文が表示され始めたら「再生中」に切り替える。
+ */
+function StatusIndicator({ label }: { label: string }) {
   return (
     <div className="mt-2 flex items-center gap-1.5">
       <div className="flex h-[11px] items-end gap-[2px]">
@@ -17,9 +20,13 @@ function PlayingIndicator() {
           />
         ))}
       </div>
-      <span className="text-[11px] text-ink-soft">再生中</span>
+      <span className="text-[11px] text-ink-soft">{label}</span>
     </div>
   );
+}
+
+function streamingLabel(content: string): string {
+  return content ? "再生中" : "生成中...";
 }
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
@@ -43,6 +50,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
           </span>
         </div>
         <div className="whitespace-pre-wrap">{message.content}</div>
+        {message.streaming && <StatusIndicator label={streamingLabel(message.content)} />}
       </div>
     );
   }
@@ -50,7 +58,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className="max-w-[78%] self-start whitespace-pre-wrap rounded-[16px_16px_16px_4px] bg-panel-bubble px-4 py-3 text-[14.5px] leading-[1.55] text-ink">
       <div>{message.content}</div>
-      {message.streaming && <PlayingIndicator />}
+      {message.streaming && <StatusIndicator label={streamingLabel(message.content)} />}
     </div>
   );
 }

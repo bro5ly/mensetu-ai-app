@@ -1,33 +1,48 @@
 package com.interviewapp.company;
 
 import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
+import com.interviewapp.llm.OllamaChatClient;
+import com.interviewapp.llm.OllamaMessage;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.ollama.api.OllamaOptions;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/** {@link CompanyResearchLlm} の Spring AI (Ollama) 実装。 */
+/** {@link CompanyResearchLlm} の Ollama 実装({@link OllamaChatClient}経由、理由はそちらのJavadoc参照)。 */
 @Component
 public class SpringAiCompanyResearchLlm implements CompanyResearchLlm {
 
-    /** リサーチ要約: 概要文なので出力トークンを絞って CPU 推論の待ち時間を短くする。 */
-    private static final OllamaOptions OVERVIEW_OPTIONS =
-            OllamaOptions.builder().numPredict(360).temperature(0.4).build();
+    /**
+     * リサーチ要約: 目標は600〜900文字程度だが、途中で不自然に切れる方が実害が大きいため、
+     * 上限(num_predict/num_ctx)は狙いの文字数よりかなり大きめに確保しておく。実際の長さは
+     * プロンプト側の指示(文字数目安)に委ね、返ってきた内容はそのまま出力する(こちらで
+     * 切り詰めない)。ソース本文(1件あたり最大2000文字)を複数渡すことがあるため、
+     * 入力+出力の両方を余裕を持って収められるよう num_ctx も大きめにする。
+     */
+    private static final Map<String, Object> OVERVIEW_OPTIONS =
+            Map.of("num_predict", 4096, "num_ctx", 8192, "temperature", 0.4);
 
-    /** 質問生成: 3 行だけなのでさらに短く、ぶれないよう温度も低め。 */
-    private static final OllamaOptions QUESTIONS_OPTIONS =
-            OllamaOptions.builder().numPredict(200).temperature(0.3).build();
+    /** 質問生成: 出力自体は短いが、同じ理由で上限は余裕を持たせる。 */
+    private static final Map<String, Object> QUESTIONS_OPTIONS =
+            Map.of("num_predict", 800, "num_ctx", 8192, "temperature", 0.3);
 
-    private final ChatClient chatClient;
+    private final OllamaChatClient ollama;
     private final CompanyResearchPromptFactory prompts;
+    private final QuestionBankService questionBank;
+    private final String model;
 
     public SpringAiCompanyResearchLlm(
-            ChatClient.Builder chatClientBuilder, CompanyResearchPromptFactory prompts) {
-        this.chatClient = chatClientBuilder.build();
+            OllamaChatClient ollama,
+            CompanyResearchPromptFactory prompts,
+            QuestionBankService questionBank,
+            @Value("${spring.ai.ollama.chat.options.model}") String model) {
+        this.ollama = ollama;
         this.prompts = prompts;
+        this.questionBank = questionBank;
+        this.model = model;
     }
 
     @Override
@@ -49,7 +64,7 @@ public class SpringAiCompanyResearchLlm implements CompanyResearchLlm {
     public List<String> generateQuestions(String companyName, String overview) {
         String content = call(
                 prompts.questionsSystemPrompt(),
-                prompts.questionsUserPrompt(companyName, overview),
+                prompts.questionsUserPrompt(companyName, overview, questionBank.sampleForPrompt()),
                 QUESTIONS_OPTIONS,
                 "質問の生成");
         List<String> questions = parseQuestionLines(content);
@@ -59,10 +74,11 @@ public class SpringAiCompanyResearchLlm implements CompanyResearchLlm {
         return questions;
     }
 
-    /** ChatClient 呼び出しの共通化。接続エラー等は {@link IllegalStateException} に変換する(→ 502)。 */
-    private String call(String system, String user, OllamaOptions options, String what) {
+    /** Ollama 呼び出しの共通化。接続エラー等は {@link IllegalStateException} に変換する(→ 502)。 */
+    private String call(String system, String user, Map<String, Object> options, String what) {
         try {
-            return chatClient.prompt().system(system).user(user).options(options).call().content();
+            List<OllamaMessage> messages = List.of(OllamaMessage.system(system), OllamaMessage.user(user));
+            return ollama.call(model, messages, options);
         } catch (IllegalStateException e) {
             throw e;
         } catch (RuntimeException e) {

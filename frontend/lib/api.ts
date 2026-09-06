@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import type {
+  BatchAddSourcesResponse,
   CompanyDetail,
   CompanySummary,
   FetchedSourcePreview,
@@ -96,6 +97,12 @@ export const api = {
     request<SourceResponse>(`/api/companies/${companyId}/sources`, {
       method: "POST",
       body: JSON.stringify({ url }),
+    }),
+
+  addSources: (companyId: string, urls: string[]) =>
+    request<BatchAddSourcesResponse>(`/api/companies/${companyId}/sources/batch`, {
+      method: "POST",
+      body: JSON.stringify({ urls }),
     }),
 
   deleteSource: (sourceId: string) =>

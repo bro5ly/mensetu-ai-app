@@ -10,9 +10,13 @@ public final class WsProtocol {
     public static final String END_TURN = "end_turn";
     public static final String FORCE_END = "force_end";
     public static final String USER_TEXT = "user_text";
+    /** 録音中に数秒おきに送られる、その時点までの音声のプレビュー文字起こしのリクエスト。 */
+    public static final String REQUEST_PARTIAL_TRANSCRIPT = "request_partial_transcript";
 
     // サーバー → クライアント
     public static final String TRANSCRIPT = "transcript";
+    /** {@link #REQUEST_PARTIAL_TRANSCRIPT} への応答。録音継続中の途中経過の文字起こし。 */
+    public static final String PARTIAL_TRANSCRIPT = "partial_transcript";
     public static final String ASSISTANT_MESSAGE_START = "assistant_message_start";
     public static final String ASSISTANT_TEXT_CHUNK = "assistant_text_chunk";
     public static final String ASSISTANT_MESSAGE_END = "assistant_message_end";

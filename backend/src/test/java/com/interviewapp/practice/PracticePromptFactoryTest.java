@@ -23,7 +23,28 @@ class PracticePromptFactoryTest {
                 .contains("ABCコーポレーション")
                 .contains("学生時代に力を入れたことを教えてください")
                 .contains("<<ADVICE>>")
-                .contains("あなたから面接を終了してはいけません");
+                .contains("ユーザーが終了ボタンを押すまで、常にこの1問の練習を続けます");
+    }
+
+    @Test
+    void 回答例でユーザーの経歴を捏造しない旨の注意が含まれる() {
+        String prompt = factory.systemPrompt(
+                "ABCコーポレーション", "従業員数1000人のIT企業", List.of(), "質問");
+
+        assertThat(prompt)
+                .contains("会社側の背景情報として参考にするだけにとどめ")
+                .contains("一人称の実体験としてではなく、あくまで例として語ります");
+    }
+
+    @Test
+    void STAR型とPREP型の回答フレームワークが含まれる() {
+        String prompt = factory.systemPrompt("ABCコーポレーション", null, List.of(), "質問");
+
+        assertThat(prompt)
+                .contains("STAR型")
+                .contains("状況(どんな場面だったか)")
+                .contains("PREP型")
+                .contains("結論(一番伝えたいこと)");
     }
 
     @Test

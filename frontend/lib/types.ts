@@ -45,6 +45,18 @@ export interface SourceResponse {
   createdAt: string;
 }
 
+/** URL一括追加のうち失敗した1件。 */
+export interface FailedSource {
+  url: string;
+  message: string;
+}
+
+/** ソース一括追加の結果(成功/失敗を分けて返す)。 */
+export interface BatchAddSourcesResponse {
+  added: SourceResponse[];
+  failed: FailedSource[];
+}
+
 export interface MessageResponse {
   id: string;
   role: MessageRole;
@@ -83,9 +95,14 @@ export interface PracticeEndResponse {
   lightSummary: string | null;
 }
 
-/** 企業リサーチ: 未保存の企業概要下書き。 */
+/**
+ * 企業リサーチ: 未保存の企業概要下書き。
+ * `sources` はリクエストで渡したソースに、SearXNGで自動的に見つかったソースを加えた
+ * 最終的な一覧(ユーザー提供分が先頭)。
+ */
 export interface ResearchDraft {
   overview: string;
+  sources: FetchedSourcePreview[];
 }
 
 /** 企業リサーチ: 未保存の生成済み質問。 */

@@ -114,7 +114,20 @@ CREATE TABLE mock_question_feedbacks (
     sequence_no          INT NOT NULL
 );
 
+-- 質問バンク(会社に紐づかないグローバルな参照データ。実装は V3__add_question_bank.sql)
+-- 定番の面接質問+「良い回答の型」を保持し、企業リサーチの質問生成が会社概要の言い回しだけに
+-- 引っ張られて過度に狭くなるのを防ぐための手本として使う。現状はキュレーションした静的データを
+-- マイグレーションで登録している(WebSearchClientが実プロバイダに接続されたら差し替え候補)。
+CREATE TABLE question_bank_entries (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    internal_category VARCHAR(50) NOT NULL,        -- interview_questions と同じ内部カテゴリ
+    question_text     TEXT NOT NULL,
+    answer_guidance   TEXT NOT NULL,                -- 回答例そのものではなく「型」の説明
+    created_at        TIMESTAMP NOT NULL DEFAULT now()
+);
+
 -- インデックス
+CREATE INDEX idx_question_bank_category ON question_bank_entries(internal_category);
 CREATE INDEX idx_steps_company     ON company_interview_steps(company_id);
 CREATE INDEX idx_reviews_company   ON company_review_summaries(company_id);
 CREATE INDEX idx_questions_company ON interview_questions(company_id);
@@ -138,7 +151,7 @@ REST（CRUD・企業リサーチ・レポート取得）＋ WebSocket（リア�
 
 | メソッド | パス                                    | 説明                                                                                        |
 | -------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
-| POST     | `/api/companies/research`               | 会社名(＋任意で現在の下書き・フィードバック)から Web 検索＋LLM要約で企業概要の下書きを返す（未保存）。現フェーズの Web 検索は `WebSearchClient` のスタブ実装。結果は `{ overview }` のみ（選考フロー等は返さない） |
+| POST     | `/api/companies/research`               | 会社名(＋任意で現在の下書き・フィードバック)から Web 検索＋LLM要約で企業概要の下書きを返す（未保存）。Web 検索は `WebSearchClient` 抽象の背後の SearXNG(自己ホスト)実装。結果は `{ overview, sources }`（`sources` はユーザー提供＋自動検索で見つかった最終的なソース一覧） |
 | POST     | `/api/companies/generate-questions`     | 確認済みの `{ name, overview }` から面接想定質問を 3 件生成して返す（未保存、`{ questions: string[] }`） |
 | POST     | `/api/companies`                        | 会社を作成。`{ name, overview?, questions?: string[] }` を受け取り、`questions` があれば会社作成と同時に一括登録する（ウィザードの最終ステップ）  |
 | GET      | `/api/companies`                        | 会社一覧取得（サイドバー表示用）                                                              |

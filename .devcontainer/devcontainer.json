@@ -3,6 +3,18 @@
   "dockerComposeFile": "../docker-compose.dev.yml",
   "service": "devcontainer",
   "workspaceFolder": "/workspace",
+  // devcontainer内から `docker` / `docker compose` をホストのDockerデーモンに
+  // 対して実行できるようにする(docker-outside-of-docker)。GPU対応Ollamaコンテナ
+  // (`ollama-gpu`profile)をdevcontainerのターミナルから起動するために必要。
+  // ソケット(/var/run/docker.sock)自体はdocker-compose.dev.ymlでマウント済みで、
+  // この機能が非rootユーザー(vscode)からの権限問題を自動で解決する。
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": false,
+      "installDockerBuildx": true,
+      "dockerDashComposeVersion": "v2"
+    }
+  },
   "customizations": {
     "vscode": {
       "extensions": [

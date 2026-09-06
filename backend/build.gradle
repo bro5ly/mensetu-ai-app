@@ -56,6 +56,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:postgresql'
     testImplementation 'org.testcontainers:junit-jupiter'
+    // Ollamaへの生HTTP呼び出し(OllamaChatClient)のストリーミング解析をHTTPレベルで検証するため
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+    testImplementation 'io.projectreactor:reactor-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

@@ -37,6 +37,10 @@ public class WsEventCodec {
         return write(Map.of("type", WsProtocol.TRANSCRIPT, "text", text));
     }
 
+    public String partialTranscript(String text) {
+        return write(Map.of("type", WsProtocol.PARTIAL_TRANSCRIPT, "text", text));
+    }
+
     public String assistantMessageStart(MessageType messageType) {
         return write(Map.of("type", WsProtocol.ASSISTANT_MESSAGE_START, "messageType", messageType.name()));
     }

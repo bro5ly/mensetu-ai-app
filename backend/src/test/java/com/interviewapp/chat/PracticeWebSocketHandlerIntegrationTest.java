@@ -127,7 +127,8 @@ class PracticeWebSocketHandlerIntegrationTest {
     void テキスト発話から応答ストリームとTTSと終了までが流れる() throws Exception {
         when(llm.streamReply(any(), any(), any()))
                 .thenReturn(Flux.just("なるほど。", "そのとき何を意識しましたか？"));
-        when(ttsClient.synthesize(any(), anyInt())).thenReturn(new byte[] {1, 2, 3, 4});
+        when(ttsClient.createAudioQuery(any(), anyInt())).thenReturn("{}");
+        when(ttsClient.synthesizeFromQuery(any(), anyInt())).thenReturn(new byte[] {1, 2, 3, 4});
 
         StandardWebSocketClient client = new StandardWebSocketClient();
         CollectingHandler handler = new CollectingHandler();
@@ -143,8 +144,11 @@ class PracticeWebSocketHandlerIntegrationTest {
                 .containsSubsequence("assistant_message_start", "assistant_text_chunk", "assistant_message_end");
         assertThat(handler.textFrames.stream().filter(f -> typeOf(f).equals("assistant_message_start")))
                 .anySatisfy(f -> assertThat(f).contains("\"messageType\":\"NORMAL\""));
-        assertThat(handler.binaryFrames).hasSize(1);
-        assertThat(handler.binaryFrames.get(0)).containsExactly(1, 2, 3, 4);
+        // モックの応答は句点区切りで2文("なるほど。"/"そのとき何を意識しましたか？")のため、
+        // 文単位でTTSを呼ぶ実装では合成・送信も2回に分かれる。
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(handler.binaryFrames).hasSize(2));
+        assertThat(handler.binaryFrames).allSatisfy(frame -> assertThat(frame).containsExactly(1, 2, 3, 4));
 
         ws.sendMessage(new TextMessage("{\"type\":\"force_end\"}"));
 
@@ -166,7 +170,8 @@ class PracticeWebSocketHandlerIntegrationTest {
     void 音声発話ではSTT結果がtranscriptとして返る() throws Exception {
         when(sttClient.transcribe(any(), any())).thenReturn("アルバイトで新人教育を担当していました");
         when(llm.streamReply(any(), any(), any())).thenReturn(Flux.just("いいですね。"));
-        when(ttsClient.synthesize(any(), anyInt())).thenReturn(new byte[0]);
+        when(ttsClient.createAudioQuery(any(), anyInt())).thenReturn("{}");
+        when(ttsClient.synthesizeFromQuery(any(), anyInt())).thenReturn(new byte[0]);
 
         StandardWebSocketClient client = new StandardWebSocketClient();
         CollectingHandler handler = new CollectingHandler();
@@ -181,6 +186,56 @@ class PracticeWebSocketHandlerIntegrationTest {
 
         assertThat(handler.textFrames.stream().filter(f -> typeOf(f).equals("transcript")))
                 .anySatisfy(f -> assertThat(f).contains("アルバイトで新人教育を担当していました"));
+
+        ws.close();
+    }
+
+    @Test
+    void 録音中のプレビュー文字起こしはバッファをリセットせず本番の文字起こしに影響しない() throws Exception {
+        when(sttClient.transcribe(any(), any()))
+                .thenReturn("学生時代に")
+                .thenReturn("学生時代に力を入れたことです");
+        when(llm.streamReply(any(), any(), any())).thenReturn(Flux.just("いいですね。"));
+        when(ttsClient.createAudioQuery(any(), anyInt())).thenReturn("{}");
+        when(ttsClient.synthesizeFromQuery(any(), anyInt())).thenReturn(new byte[0]);
+
+        StandardWebSocketClient client = new StandardWebSocketClient();
+        CollectingHandler handler = new CollectingHandler();
+        WebSocketSession ws = client.execute(handler,
+                "ws://localhost:" + port + "/ws/sessions/" + sessionId).get();
+
+        ws.sendMessage(new BinaryMessage(new byte[] {10, 20, 30}));
+        ws.sendMessage(new TextMessage("{\"type\":\"request_partial_transcript\"}"));
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(types(handler)).contains("partial_transcript"));
+        assertThat(handler.textFrames.stream().filter(f -> typeOf(f).equals("partial_transcript")))
+                .anySatisfy(f -> assertThat(f).contains("学生時代に"));
+
+        // プレビュー文字起こし後も録音は継続し、end_turn で改めて全体を文字起こしする
+        ws.sendMessage(new BinaryMessage(new byte[] {40, 50}));
+        ws.sendMessage(new TextMessage("{\"type\":\"end_turn\"}"));
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(types(handler)).contains("assistant_message_end"));
+        assertThat(handler.textFrames.stream().filter(f -> typeOf(f).equals("transcript")))
+                .anySatisfy(f -> assertThat(f).contains("学生時代に力を入れたことです"));
+
+        ws.close();
+    }
+
+    @Test
+    void プレビュー音声が無ければpartial_transcriptを送らない() throws Exception {
+        StandardWebSocketClient client = new StandardWebSocketClient();
+        CollectingHandler handler = new CollectingHandler();
+        WebSocketSession ws = client.execute(handler,
+                "ws://localhost:" + port + "/ws/sessions/" + sessionId).get();
+
+        ws.sendMessage(new TextMessage("{\"type\":\"request_partial_transcript\"}"));
+
+        // 何も送られてこないことを、少し待ってから確認する(await では「起きないこと」の確認はしにくい)
+        Thread.sleep(500);
+        assertThat(types(handler)).doesNotContain("partial_transcript");
 
         ws.close();
     }

@@ -3,6 +3,8 @@ import type { MessageType } from "./types";
 
 export interface PracticeSocketHandlers {
   onTranscript?: (text: string) => void;
+  /** 録音継続中のプレビュー文字起こし({@link PracticeSocket.requestPartialTranscript}への応答)。 */
+  onPartialTranscript?: (text: string) => void;
   onAssistantStart?: (messageType: MessageType) => void;
   onAssistantChunk?: (text: string) => void;
   onAssistantEnd?: () => void;
@@ -62,6 +64,9 @@ export class PracticeSocket {
       case "transcript":
         this.handlers.onTranscript?.(event.text ?? "");
         break;
+      case "partial_transcript":
+        this.handlers.onPartialTranscript?.(event.text ?? "");
+        break;
       case "assistant_message_start":
         this.handlers.onAssistantStart?.(event.messageType ?? "NORMAL");
         break;
@@ -94,6 +99,15 @@ export class PracticeSocket {
 
   endTurn(): void {
     if (this.isOpen) this.ws!.send(JSON.stringify({ type: "end_turn" }));
+  }
+
+  /**
+   * 録音継続中に、その時点までの音声のプレビュー文字起こしをリクエストする。
+   * サーバー側は前回のリクエストがまだ処理中なら無視するので、一定間隔で
+   * 呼び続けるだけでよい(多重リクエストの制御は不要)。
+   */
+  requestPartialTranscript(): void {
+    if (this.isOpen) this.ws!.send(JSON.stringify({ type: "request_partial_transcript" }));
   }
 
   forceEnd(): void {

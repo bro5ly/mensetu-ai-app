@@ -39,10 +39,10 @@ spring:
       chat:
         options:
           # Ollamaはホスト（Mac）でネイティブ起動している前提（Docker Composeの対象外）。
-          # 現在の開発機では llama3.2:3b を使用。Docker上でCPU動作させる等メモリに
-          # 余裕がない環境では OLLAMA_MODEL を llama3.2:1b に落とす。GPUがあれば
-          # llama3.1:8b 等に上げる。
-          model: ${OLLAMA_MODEL:llama3.2:3b}
+          # 日本語の自然さを優先し、既定モデルは qwen3.5:4b。Docker上でCPU動作させる等
+          # メモリに余裕がない環境では OLLAMA_MODEL を qwen3.5:2b/0.8b に落とす。
+          # GPUに余裕があれば qwen3.5:9b に上げてもよい。
+          model: ${OLLAMA_MODEL:qwen3.5:4b}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -57,9 +57,16 @@ app:
   voicevox:
     base-url: ${VOICEVOX_BASE_URL:http://localhost:50021}
     speaker: ${VOICEVOX_SPEAKER:3}
+    # 読み上げ速度倍率。生成完了から聞き終わるまでの体感時間を縮めるため既定を少し速めにしている。
+    # 1.0が等倍、値を上げるほど速い(不自然にならない範囲は概ね1.0〜1.3程度)。
+    speed-scale: ${VOICEVOX_SPEED_SCALE:1.1}
   sources:
     # 企業ソースURLの直接fetch(APIキー不要)。実際の外部ネットワーク呼び出しなので明示的にタイムアウトを設ける。
     fetch-timeout-ms: ${SOURCES_FETCH_TIMEOUT_MS:10000}
+  searxng:
+    # 自己ホストのSearXNG(APIキー不要、docker-compose.ymlの`searxng`サービス)。
+    # 企業リサーチの初回検索で自動的にURL候補を探すのに使う。未起動でも検索結果0件で続行する。
+    base-url: ${SEARXNG_BASE_URL:http://localhost:8081}
 
 logging:
   level:

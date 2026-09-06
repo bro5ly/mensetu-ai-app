@@ -8,6 +8,8 @@ import com.interviewapp.company.CompanyDtos.GeneratedQuestions;
 import com.interviewapp.company.CompanyDtos.ResearchCompanyRequest;
 import com.interviewapp.company.CompanyDtos.ResearchDraft;
 import com.interviewapp.company.CompanyDtos.UpdateCompanyRequest;
+import com.interviewapp.company.CompanySourceDtos.BatchAddSourcesRequest;
+import com.interviewapp.company.CompanySourceDtos.BatchAddSourcesResponse;
 import com.interviewapp.company.CompanySourceDtos.CreateSourceRequest;
 import com.interviewapp.company.CompanySourceDtos.FetchSourceRequest;
 import com.interviewapp.company.CompanySourceDtos.FetchedSourcePreview;
@@ -122,5 +124,13 @@ public class CompanyController {
         SourceResponse created = companySourceService.addSource(companyId, request.url());
         return ResponseEntity.created(URI.create("/api/companies/" + companyId + "/sources/" + created.id()))
                 .body(created);
+    }
+
+    /** 既存の会社にURLをまとめて追加する。1件の失敗が他をブロックしないよう、成功/失敗を分けて返す。 */
+    @PostMapping("/{companyId}/sources/batch")
+    public BatchAddSourcesResponse addSources(
+            @PathVariable UUID companyId, @Valid @RequestBody BatchAddSourcesRequest request) {
+        companyService.findOrThrow(companyId);
+        return companySourceService.addSources(companyId, request.urls());
     }
 }

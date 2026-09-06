@@ -23,6 +23,7 @@
 - Ollama (LLM)
 - faster-whisper (STT)
 - VOICEVOX (TTS)
+- SearXNG (企業リサーチの自動Web検索、自己ホスト・APIキー不要)
 
 ## セットアップ
 
@@ -44,7 +45,7 @@ cp .env.example .env
 ```
 （PowerShellの場合: `Copy-Item .env.example .env`）
 
-3. Docker Composeでサービスを起動（PostgreSQL / faster-whisper / VOICEVOX）
+3. Docker Composeでサービスを起動（PostgreSQL / faster-whisper / VOICEVOX / SearXNG）
 ```bash
 docker compose up -d
 ```
@@ -89,21 +90,21 @@ Mac/Windowsのどちらでも解決でき、方法Bのコンテナにも到達�
 
 方法A（ネイティブ起動）の場合:
 ```bash
-# 現在の開発機で使用しているモデル（約2GB）。会話・企業リサーチの要約・質問生成すべてで使用する。
-ollama pull llama3.2:3b
-# Docker上でCPU動作させる等メモリに余裕がない環境向けの軽量モデル（約1.3GB）。
-# 使う場合は .env の OLLAMA_MODEL も llama3.2:1b に変更する。
-# ollama pull llama3.2:1b
-# GPUがあれば以下も可（約5〜6GB）
-# ollama pull llama3.1:8b
-# 日本語重視なら qwen2.5:3b も可
+# 既定モデル（約3.4GB）。日本語の自然さを優先。会話・企業リサーチの要約・質問生成すべてで使用する。
+ollama pull qwen3.5:4b
+# Docker上でCPU動作させる等メモリに余裕がない環境向けの軽量モデル（約1〜2.7GB）。
+# 使う場合は .env の OLLAMA_MODEL も qwen3.5:2b/0.8b に変更する。
+# ollama pull qwen3.5:2b
+# GPUに余裕があれば以下も可（約6.6GB）。.envのOLLAMA_MODELもqwen3.5:9bに変更する。
+# ollama pull qwen3.5:9b
 ```
 
 方法B（GPUコンテナ）の場合、`ollama pull`ではなくコンテナ内で実行する:
 ```bash
-# RTX 3060（12GB VRAM）クラスなら8Bモデルが快適に動く。.envのOLLAMA_MODELも合わせて変更する。
-docker compose --profile ollama-gpu exec ollama ollama pull llama3.1:8b
-# 日本語重視なら qwen2.5:7b も可
+# 既定モデル（約3.4GB）。.envのOLLAMA_MODELもqwen3.5:4bのままでよい。
+docker compose --profile ollama-gpu exec ollama ollama pull qwen3.5:4b
+# RTX 3060（12GB VRAM）クラスなど余裕があれば9Bも可（約6.6GB）
+# docker compose --profile ollama-gpu exec ollama ollama pull qwen3.5:9b
 ```
 
 6. DBスキーマはバックエンド起動時にFlywayが自動適用する（手動マイグレーション不要）。
@@ -124,6 +125,20 @@ docker compose --profile ollama-gpu exec ollama ollama pull llama3.1:8b
 Windowsでは、リポジトリを`C:\...`側ではなくWSL2のLinuxファイルシステム内
 （例: `~/projects/mensetu-ai-app`）にクローンしてから開くと、ファイルI/Oが大幅に速くなる。
 Docker DesktopのWSL2統合を有効にしていれば、Mac同様`host.docker.internal`が解決される。
+
+devcontainer内には`docker-outside-of-docker`機能により`docker`/`docker compose`コマンドが
+入っている（ホストのDockerデーモンをソケット経由でそのまま操作する、いわゆる
+sibling-container方式）。方法B（GPU対応Ollamaコンテナ）を使う場合、devcontainerの
+ターミナルからでもホストのターミナルからでも同じコマンドで起動できる。
+
+```bash
+docker compose --profile ollama-gpu up -d
+```
+
+> devcontainerを新しく作った/リビルドした直後は機能のインストールが反映されるまで
+> `docker`コマンドが使えるようになるのに数秒かかることがある。`command not found`や
+> ソケットの権限エラーが出る場合は一度コンテナをリビルドする
+> （コマンドパレット→「Dev Containers: Rebuild Container」）。
 
 ### Backend開発
 
@@ -152,8 +167,8 @@ npm run dev
 
 ### 動作確認手順
 
-1. `docker compose up -d`（PostgreSQL / faster-whisper / VOICEVOX）
-2. ホストでOllamaを起動し（Macは`ollama serve`、Windowsはインストール後は常駐サービスとして自動起動）、`ollama pull llama3.2:3b`
+1. `docker compose up -d`（PostgreSQL / faster-whisper / VOICEVOX / SearXNG）
+2. ホストでOllamaを起動し（Macは`ollama serve`、Windowsはインストール後は常駐サービスとして自動起動）、`ollama pull qwen3.5:4b`
 3. `cd backend && ./gradlew bootRun`（Windowsは`.\gradlew.bat bootRun`。Flywayがスキーマを作成）
 4. `cd frontend && npm run dev`
 5. http://localhost:3000 を開く

@@ -50,7 +50,7 @@ type Action =
   | { type: "reopen" }
   | { type: "busy"; value: Busy }
   | { type: "error"; value: string | null }
-  | { type: "researched"; overview: string }
+  | { type: "researched"; overview: string; sources: FetchedSourcePreview[] }
   | { type: "generated"; questions: string[] };
 
 function reducer(state: State, action: Action): State {
@@ -96,6 +96,7 @@ function reducer(state: State, action: Action): State {
         busy: null,
         step: "review",
         overview: action.overview,
+        sources: action.sources,
         editing: false,
         confirmed: false,
         researchOpen: false,
@@ -159,7 +160,7 @@ export function useAddCompanyWizard(): AddCompanyWizard {
         name,
         sources: state.sources.length > 0 ? state.sources : undefined,
       });
-      dispatch({ type: "researched", overview: draft.overview });
+      dispatch({ type: "researched", overview: draft.overview, sources: draft.sources });
     } catch (e) {
       dispatch({ type: "error", value: toMessage(e, "企業情報を検索できませんでした") });
     }
@@ -176,7 +177,7 @@ export function useAddCompanyWizard(): AddCompanyWizard {
         currentOverview: state.overview,
         feedback: state.feedback.trim() || undefined,
       });
-      dispatch({ type: "researched", overview: draft.overview });
+      dispatch({ type: "researched", overview: draft.overview, sources: draft.sources });
     } catch (e) {
       dispatch({ type: "error", value: toMessage(e, "再検索できませんでした") });
     }

@@ -57,6 +57,16 @@ services:
     # `command: --host 0.0.0.0` を渡すと entrypoint.sh の `exec "$@"` が
     # `exec --host 0.0.0.0` になり「exec: --: invalid option」で即終了 → 再起動ループ。
 
+  # 企業リサーチの自動Web検索用(自己ホスト・APIキー不要のメタ検索エンジン)。
+  # ./searxng/settings.yml でJSON API(GET /search?format=json)を有効化している。
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+
 volumes:
   postgres-data:
   ollama-data:

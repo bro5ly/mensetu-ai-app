@@ -83,6 +83,15 @@ describe("PracticeSocket", () => {
     expect(onError).toHaveBeenCalledWith("失敗");
   });
 
+  it("partial_transcript をコールバックに渡す", () => {
+    const onPartialTranscript = vi.fn();
+    const { ws } = connect({ onPartialTranscript });
+
+    ws.emit(JSON.stringify({ type: "partial_transcript", text: "学生時代に" }));
+
+    expect(onPartialTranscript).toHaveBeenCalledWith("学生時代に");
+  });
+
   it("バイナリフレームを音声コールバックに渡す", () => {
     const onAssistantAudio = vi.fn();
     const { ws } = connect({ onAssistantAudio });
@@ -105,11 +114,13 @@ describe("PracticeSocket", () => {
     socket.sendUserText("テスト");
     socket.endTurn();
     socket.forceEnd();
+    socket.requestPartialTranscript();
 
     expect(ws.sent).toEqual([
       JSON.stringify({ type: "user_text", text: "テスト" }),
       JSON.stringify({ type: "end_turn" }),
       JSON.stringify({ type: "force_end" }),
+      JSON.stringify({ type: "request_partial_transcript" }),
     ]);
   });
 

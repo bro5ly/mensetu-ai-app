@@ -91,4 +91,50 @@ describe("createAudioQueuePlayer", () => {
     expect(pauseSpy).toHaveBeenCalledTimes(1);
     expect(FakeAudio.instances).toHaveLength(1);
   });
+
+  it("再生開始・全件終了・stop()で再生状態の変化を通知する", () => {
+    const onPlayingChange = vi.fn();
+    const player = createAudioQueuePlayer(() => new FakeAudio(), onPlayingChange);
+
+    player.enqueue(blob());
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true);
+
+    FakeAudio.instances[0].finish();
+    expect(onPlayingChange).toHaveBeenLastCalledWith(false);
+
+    player.enqueue(blob());
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true);
+    player.stop();
+    expect(onPlayingChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("onStartは再生が実際に始まったタイミングで呼ばれる", () => {
+    const player = createAudioQueuePlayer(() => new FakeAudio());
+    const onStart1 = vi.fn();
+    const onStart2 = vi.fn();
+
+    player.enqueue(blob(), onStart1);
+    expect(onStart1).toHaveBeenCalledTimes(1);
+
+    player.enqueue(blob(), onStart2);
+    expect(onStart2).not.toHaveBeenCalled();
+
+    FakeAudio.instances[0].finish();
+    expect(onStart2).toHaveBeenCalledTimes(1);
+  });
+
+  it("stop()でまだ再生されていない分もonStartを呼んでテキストが隠れたままにならないようにする", () => {
+    const player = createAudioQueuePlayer(() => new FakeAudio());
+    const onStart1 = vi.fn();
+    const onStart2 = vi.fn();
+
+    player.enqueue(blob(), onStart1);
+    player.enqueue(blob(), onStart2);
+    expect(onStart2).not.toHaveBeenCalled();
+
+    player.stop();
+
+    expect(onStart2).toHaveBeenCalledTimes(1);
+    expect(onStart1).toHaveBeenCalledTimes(1);
+  });
 });

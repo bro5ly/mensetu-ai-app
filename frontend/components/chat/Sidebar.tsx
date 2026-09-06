@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
 import { AddCompanyWizard } from "./AddCompanyWizard";
-import type { CompanyDetail, QuestionResponse } from "@/lib/types";
+import type { CompanyDetail, QuestionResponse, SourceResponse } from "@/lib/types";
 
 interface Props {
   activeQuestionId: string | null;
@@ -29,6 +29,15 @@ export function Sidebar({
     null,
   );
   const [questionText, setQuestionText] = useState("");
+
+  const [manageSourcesFor, setManageSourcesFor] = useState<CompanyDetail | null>(
+    null,
+  );
+  const [sources, setSources] = useState<SourceResponse[]>([]);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [sourceUrlsText, setSourceUrlsText] = useState("");
+  const [sourceBusy, setSourceBusy] = useState(false);
+  const [sourceError, setSourceError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,6 +94,59 @@ export function Sidebar({
       setAddQuestionFor(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "質問を追加できませんでした");
+    }
+  };
+
+  const openManageSources = async (company: CompanyDetail) => {
+    setSourceUrlsText("");
+    setSourceError(null);
+    setManageSourcesFor(company);
+    setSourcesLoading(true);
+    try {
+      setSources(await api.listSources(company.id));
+    } catch (e) {
+      setSourceError(e instanceof ApiError ? e.message : "ソース一覧を取得できませんでした");
+    } finally {
+      setSourcesLoading(false);
+    }
+  };
+
+  /** 1行に1URLで複数まとめて貼り付け可能(1件だけでも同じ経路で追加する)。 */
+  const addSources = async () => {
+    const company = manageSourcesFor;
+    const urls = Array.from(
+      new Set(
+        sourceUrlsText
+          .split("\n")
+          .map((u) => u.trim())
+          .filter((u) => u.length > 0),
+      ),
+    );
+    if (!company || urls.length === 0) return;
+    setSourceBusy(true);
+    setSourceError(null);
+    try {
+      const result = await api.addSources(company.id, urls);
+      setSources((prev) => [...result.added, ...prev]);
+      setSourceUrlsText("");
+      if (result.failed.length > 0) {
+        setSourceError(
+          `追加できなかったURL: ${result.failed.map((f) => f.url).join(", ")}`,
+        );
+      }
+    } catch (e) {
+      setSourceError(e instanceof ApiError ? e.message : "ソースを追加できませんでした");
+    } finally {
+      setSourceBusy(false);
+    }
+  };
+
+  const removeSource = async (sourceId: string) => {
+    try {
+      await api.deleteSource(sourceId);
+      setSources((prev) => prev.filter((s) => s.id !== sourceId));
+    } catch (e) {
+      setSourceError(e instanceof ApiError ? e.message : "ソースを削除できませんでした");
     }
   };
 
@@ -174,6 +236,27 @@ export function Sidebar({
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    title="ソースを管理"
+                    onClick={() => void openManageSources(company)}
+                    className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-ink-soft hover:text-accent"
+                  >
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                     </svg>
                   </button>
                   <button
@@ -302,6 +385,90 @@ export function Sidebar({
               追加する
             </button>
           </div>
+        </Modal>
+      )}
+
+      {manageSourcesFor && (
+        <Modal
+          onClose={() => setManageSourcesFor(null)}
+          maxWidth={420}
+          labelledBy="manage-sources-title"
+        >
+          <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.04em] text-ink-soft">
+            {manageSourcesFor.name}のソース
+          </div>
+          <div
+            id="manage-sources-title"
+            className="mb-3.5 text-[16px] font-bold text-ink"
+          >
+            ソースを管理
+          </div>
+
+          <div className="mb-3">
+            <textarea
+              autoFocus
+              rows={3}
+              value={sourceUrlsText}
+              onChange={(e) => setSourceUrlsText(e.target.value)}
+              placeholder={"https://example.com/a\nhttps://example.com/b\n(1行に1URL、まとめて貼り付け可)"}
+              disabled={sourceBusy}
+              className="mb-2 w-full resize-none rounded-[10px] border border-line px-3.5 py-2.5 text-sm outline-none focus:border-accent disabled:opacity-60"
+            />
+            <button
+              type="button"
+              onClick={() => void addSources()}
+              disabled={!sourceUrlsText.trim() || sourceBusy}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white transition enabled:bg-accent disabled:cursor-not-allowed disabled:bg-panel-muted disabled:text-ink-faint"
+            >
+              {sourceBusy ? "追加中..." : "追加"}
+            </button>
+          </div>
+
+          {sourceError && (
+            <p className="mb-3 text-xs text-red-500" role="alert">
+              {sourceError}
+            </p>
+          )}
+
+          <div className="mb-4 max-h-[280px] overflow-y-auto rounded-[10px] border border-line">
+            {sourcesLoading && (
+              <p className="px-3.5 py-3 text-sm text-ink-faint">読み込み中...</p>
+            )}
+            {!sourcesLoading && sources.length === 0 && (
+              <p className="px-3.5 py-3 text-sm text-ink-faint">
+                まだソースがありません。URLを追加してください。
+              </p>
+            )}
+            {sources.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center gap-2 border-b border-line px-3.5 py-2.5 last:border-b-0"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold text-ink">
+                    {s.title || s.url}
+                  </div>
+                  <div className="truncate text-[11.5px] text-ink-faint">{s.url}</div>
+                </div>
+                <button
+                  type="button"
+                  title="削除"
+                  onClick={() => void removeSource(s.id)}
+                  className="flex-shrink-0 text-[17px] leading-none text-ink-faint hover:text-red-500"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setManageSourcesFor(null)}
+            className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-semibold text-ink"
+          >
+            閉じる
+          </button>
         </Modal>
       )}
     </>

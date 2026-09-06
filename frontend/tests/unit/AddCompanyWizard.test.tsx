@@ -28,7 +28,10 @@ beforeEach(() => {
 
 describe("AddCompanyWizard", () => {
   it("会社名検索 → 決定 → 質問作成 → 追加まで進める", async () => {
-    researchCompany.mockResolvedValue({ overview: "・挑戦的な社風\n面接では具体性が見られる。" });
+    researchCompany.mockResolvedValue({
+      overview: "・挑戦的な社風\n面接では具体性が見られる。",
+      sources: [],
+    });
     generateQuestions.mockResolvedValue({
       questions: ["志望動機を教えてください", "強みは何ですか", "逆質問はありますか"],
     });
@@ -92,7 +95,16 @@ describe("AddCompanyWizard", () => {
       title: "採用ページ",
       content: "新卒採用に力を入れています",
     });
-    researchCompany.mockResolvedValue({ overview: "・挑戦的な社風" });
+    researchCompany.mockResolvedValue({
+      overview: "・挑戦的な社風",
+      sources: [
+        {
+          url: "https://example.com/recruit",
+          title: "採用ページ",
+          content: "新卒採用に力を入れています",
+        },
+      ],
+    });
 
     render(<AddCompanyWizard onClose={() => {}} onCreated={() => {}} />);
 
@@ -120,6 +132,50 @@ describe("AddCompanyWizard", () => {
           },
         ],
       }),
+    );
+  });
+
+  it("自動検索で見つかったソースも最終的な会社作成に含まれる", async () => {
+    researchCompany.mockResolvedValue({
+      overview: "・挑戦的な社風",
+      sources: [
+        { url: "https://auto.example.com", title: "自動で見つかったページ", content: "本文" },
+      ],
+    });
+    generateQuestions.mockResolvedValue({ questions: ["志望動機を教えてください"] });
+    createCompany.mockResolvedValue({
+      id: "c1",
+      name: "ABC商事",
+      overview: "・挑戦的な社風",
+      createdAt: "",
+      updatedAt: "",
+      questions: [],
+    });
+
+    render(<AddCompanyWizard onClose={() => {}} onCreated={() => {}} />);
+
+    fireEvent.change(screen.getByPlaceholderText("例：ABCコーポレーション"), {
+      target: { value: "ABC商事" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "検索する" }));
+
+    await screen.findByText("ABC商事の特徴・面接傾向");
+    fireEvent.click(screen.getByRole("button", { name: "決定" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "この内容から質問を作成する" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "この質問をリストに追加する" }),
+    );
+
+    await waitFor(() =>
+      expect(createCompany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sources: [
+            { url: "https://auto.example.com", title: "自動で見つかったページ", content: "本文" },
+          ],
+        }),
+      ),
     );
   });
 

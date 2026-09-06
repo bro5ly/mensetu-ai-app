@@ -1,46 +1,46 @@
 package com.interviewapp.practice;
 
+import com.interviewapp.llm.OllamaChatClient;
+import com.interviewapp.llm.OllamaMessage;
+import java.util.ArrayList;
 import java.util.List;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.ollama.api.OllamaOptions;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 
-/** {@link PracticeCoachLlm} の Spring AI (Ollama) 実装。 */
+/** {@link PracticeCoachLlm} の Ollama 実装({@link OllamaChatClient}経由、理由はそちらのJavadoc参照)。 */
 @Component
 public class SpringAiPracticeCoachLlm implements PracticeCoachLlm {
 
     /**
-     * コーチの1返答は1〜2文(アドバイスでも3文以内)の音声向け短文で足りる。上限を高くすると
-     * 小型モデルが同じ内容を延々と繰り返し、生成時間もTTSで読み上げる音声も長くなるため、
-     * プロンプトの簡潔さの指示に合わせて出力トークンを絞る。
+     * コーチの1返答は1〜2文(アドバイスでも3文以内)の音声向け短文で足りるよう、プロンプト側で
+     * 簡潔さを指示している(実際の長さはプロンプトの指示に委ねる)。ただし上限(num_predict/num_ctx)
+     * 自体を狙いの長さぎりぎりに絞ると、日本語のトークン効率次第で応答が不自然に途中で
+     * 打ち切られる方が実害が大きいため、上限は余裕を持たせておく。
+     * {@code num_ctx} も明示する: 企業概要が600〜900文字程度に長くなったため、それを含む
+     * システムプロンプトがOllamaの既定コンテキスト長を超えて応答が打ち切られないようにする。
      */
-    private static final OllamaOptions REPLY_OPTIONS = OllamaOptions.builder().numPredict(220).build();
+    private static final Map<String, Object> REPLY_OPTIONS = Map.of("num_predict", 800, "num_ctx", 8192);
 
-    private final ChatClient chatClient;
+    private final OllamaChatClient ollama;
+    private final String model;
 
-    public SpringAiPracticeCoachLlm(ChatClient.Builder chatClientBuilder) {
-        this.chatClient = chatClientBuilder.build();
+    public SpringAiPracticeCoachLlm(OllamaChatClient ollama, @Value("${spring.ai.ollama.chat.options.model}") String model) {
+        this.ollama = ollama;
+        this.model = model;
     }
 
     @Override
     public Flux<String> streamReply(String systemPrompt, List<Turn> history, String userMessage) {
-        List<Message> historyMessages = history.stream()
-                .map(SpringAiPracticeCoachLlm::toMessage)
-                .toList();
+        List<OllamaMessage> messages = new ArrayList<>();
+        messages.add(OllamaMessage.system(systemPrompt));
+        history.forEach(turn -> messages.add(toMessage(turn)));
+        messages.add(OllamaMessage.user(userMessage));
 
-        return chatClient.prompt()
-                .system(systemPrompt)
-                .messages(historyMessages)
-                .user(userMessage)
-                .options(REPLY_OPTIONS)
-                .stream()
-                .content()
+        return ollama.stream(model, messages, REPLY_OPTIONS)
                 .onErrorMap(e -> !(e instanceof PracticeCoachException), SpringAiPracticeCoachLlm::translate);
     }
 
@@ -67,9 +67,9 @@ public class SpringAiPracticeCoachLlm implements PracticeCoachLlm {
         return new PracticeCoachException("AI 応答の生成に失敗しました。", e);
     }
 
-    private static Message toMessage(Turn turn) {
+    private static OllamaMessage toMessage(Turn turn) {
         return turn.role() == Turn.Role.ASSISTANT
-                ? new AssistantMessage(turn.content())
-                : new UserMessage(turn.content());
+                ? OllamaMessage.assistant(turn.content())
+                : OllamaMessage.user(turn.content());
     }
 }

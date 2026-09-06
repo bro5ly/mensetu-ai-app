@@ -20,11 +20,13 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       WHISPER_BASE_URL: http://faster-whisper:8000
       VOICEVOX_BASE_URL: http://voicevox:50021
+      SEARXNG_BASE_URL: http://searxng:8080
     depends_on:
       - postgres
       # - ollama
       - faster-whisper
       - voicevox
+      - searxng
 
   postgres:
     image: postgres:16-alpine
@@ -87,6 +89,16 @@ services:
     # で、既に 0.0.0.0:50021 を LISTEN する。`command: --host 0.0.0.0` を渡すと
     # entrypoint.sh の `exec "$@"` が `exec --host 0.0.0.0` となり
     # 「exec: --: invalid option」で即終了 → 再起動ループになる。
+
+  # 企業リサーチの自動Web検索用(自己ホスト・APIキー不要のメタ検索エンジン)。
+  # ./searxng/settings.yml でJSON API(GET /search?format=json)を有効化している。
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
 
 volumes:
   postgres-data:
