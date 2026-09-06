@@ -208,6 +208,12 @@ npm run lint          # ESLint
   Mac/Linuxの開発には影響しないようdevelopへはマージせず、developの更新を
   定期的にこのブランチへmergeして追従する運用にする（`git merge develop`）。
   Windows環境で開発する場合はこのブランチからcloneする。
+- `mac`: Mac開発環境向けの常駐ブランチ。`windows`ブランチの内容をそのまま分岐した
+  もので、`gradlew.bat`等のWindows専用ファイルも含むが、Macでは単に使われないだけで
+  実害は無い。本来の機能追加はdevelopへのマージを経てから両ブランチに反映するのが
+  望ましいが、開発速度を優先して先にwindowsへ機能をまとめてから同じ内容をmacへも
+  分岐させた経緯があるため、develop/windows/macの内容には一時的にズレが生じている。
+  Mac環境で最新の機能を試す場合はこのブランチからcloneする。
 
 ### 開発フロー
 
