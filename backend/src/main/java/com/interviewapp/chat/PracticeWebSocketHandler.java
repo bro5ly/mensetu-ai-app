@@ -1,10 +1,17 @@
 package com.interviewapp.chat;
 
 import com.interviewapp.common.NotFoundException;
+import com.interviewapp.mock.MockSessionService;
+import com.interviewapp.mock.MockTurnListener;
+import com.interviewapp.mock.MockTurnService;
 import com.interviewapp.practice.PracticeCoachException;
 import com.interviewapp.practice.PracticeTurnListener;
 import com.interviewapp.practice.PracticeTurnService;
+import com.interviewapp.practice.SpeechMetrics;
+import com.interviewapp.practice.SpeechMetricsAnalyzer;
+import com.interviewapp.session.ChatSession;
 import com.interviewapp.session.MessageType;
+import com.interviewapp.session.SessionMode;
 import com.interviewapp.session.SessionService;
 import jakarta.annotation.PreDestroy;
 import java.io.ByteArrayOutputStream;
@@ -37,6 +44,7 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(PracticeWebSocketHandler.class);
     private static final String ATTR_SESSION_ID = "chatSessionId";
+    private static final String ATTR_SESSION_MODE = "chatSessionMode";
     private static final String ATTR_AUDIO = "audioBuffer";
     private static final String ATTR_AUDIO_CONTENT_TYPE = "audioContentType";
     private static final String ATTR_OUTBOUND = "outboundSession";
@@ -47,6 +55,8 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
     private static final int SEND_BUFFER_LIMIT_BYTES = 1024 * 1024;
 
     private final PracticeTurnService turnService;
+    private final MockTurnService mockTurnService;
+    private final MockSessionService mockSessionService;
     private final SessionService sessionService;
     private final SttClient sttClient;
     private final TtsClient ttsClient;
@@ -75,6 +85,8 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
     private final ExecutorService partialTranscriptExecutor = Executors.newFixedThreadPool(2);
 
     public PracticeWebSocketHandler(PracticeTurnService turnService,
+                                    MockTurnService mockTurnService,
+                                    MockSessionService mockSessionService,
                                     SessionService sessionService,
                                     SttClient sttClient,
                                     TtsClient ttsClient,
@@ -82,6 +94,8 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
                                     WsEventCodec codec,
                                     @Value("${app.voicevox.speaker:3}") int voicevoxSpeakerId) {
         this.turnService = turnService;
+        this.mockTurnService = mockTurnService;
+        this.mockSessionService = mockSessionService;
         this.sessionService = sessionService;
         this.sttClient = sttClient;
         this.ttsClient = ttsClient;
@@ -97,18 +111,34 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
             session.close(CloseStatus.BAD_DATA.withReason("session id が不正です"));
             return;
         }
+        ChatSession chatSession;
         try {
-            sessionService.findOrThrow(chatSessionId);
+            chatSession = sessionService.findOrThrow(chatSessionId);
         } catch (NotFoundException e) {
             session.close(CloseStatus.POLICY_VIOLATION.withReason("セッションが存在しません"));
             return;
         }
         session.getAttributes().put(ATTR_SESSION_ID, chatSessionId);
+        session.getAttributes().put(ATTR_SESSION_MODE, chatSession.getMode());
         session.getAttributes().put(ATTR_AUDIO, new ByteArrayOutputStream());
         // テキスト送信(呼び出しスレッド)と音声送信(TTS実行スレッド)が同一セッションへ
         // 同時に書き込みうるため、スレッドセーフな送信用にラップしておく。
         session.getAttributes().put(ATTR_OUTBOUND,
                 new ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT_MS, SEND_BUFFER_LIMIT_BYTES));
+
+        // MOCKモードは面接官から話し始める(候補者はまだ何も答えていない)。既に開始済み
+        // (READYでなくなっている。再接続等)なら MockTurnService.startInterview 側で何もしない。
+        if (chatSession.getMode() == SessionMode.MOCK) {
+            try {
+                runMockOpening(session, chatSessionId);
+            } catch (PracticeCoachException e) {
+                log.warn("本番面接官 LLM の呼び出しに失敗: {}", e.getMessage());
+                send(session, codec.error(e.getMessage()));
+            } catch (RuntimeException e) {
+                log.error("本番面接の開始でエラー", e);
+                send(session, codec.error("面接の開始に失敗しました"));
+            }
+        }
     }
 
     @PreDestroy
@@ -127,7 +157,13 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
             switch (String.valueOf(inbound.type())) {
                 case WsProtocol.USER_TEXT -> {
                     if (inbound.text() != null && !inbound.text().isBlank()) {
-                        runTurn(session, chatSessionId, inbound.text().trim());
+                        String text = inbound.text().trim();
+                        if (isMock(session)) {
+                            runMockTurn(session, chatSessionId, text);
+                        } else {
+                            // テキスト入力には音声が無いため話し方の参考情報は無し(null)。
+                            runTurn(session, chatSessionId, text, null);
+                        }
                     }
                 }
                 case WsProtocol.END_TURN -> handleEndTurn(session, chatSessionId);
@@ -161,13 +197,28 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
             return;
         }
         String contentType = (String) session.getAttributes().getOrDefault(ATTR_AUDIO_CONTENT_TYPE, "audio/webm");
-        String transcript = sttClient.transcribe(audio, contentType);
+        TranscriptionResult result = sttClient.transcribe(audio, contentType);
+        String transcript = result.text();
         if (transcript == null || transcript.isBlank()) {
             send(session, codec.error("音声を認識できませんでした。もう一度話してみてください。"));
             return;
         }
         send(session, codec.transcript(transcript));
-        runTurn(session, chatSessionId, transcript);
+
+        if (isMock(session)) {
+            runMockTurn(session, chatSessionId, transcript);
+            return;
+        }
+        // 話速・フィラーワード・間はLLMへの参考情報としてのみ使う(ユーザーには見せない、
+        // 上のtranscriptイベント/chat_messagesには影響しない)。タイムスタンプが取れない
+        // STTサーバーの場合はSpeechMetricsAnalyzer.analyzeがnullを返し、単に分析をスキップする。
+        SpeechMetrics speechMetrics =
+                SpeechMetricsAnalyzer.analyze(transcript, result.durationSeconds(), result.longestGapSeconds());
+        runTurn(session, chatSessionId, transcript, speechMetrics);
+    }
+
+    private boolean isMock(WebSocketSession session) {
+        return session.getAttributes().get(ATTR_SESSION_MODE) == SessionMode.MOCK;
     }
 
     /**
@@ -193,7 +244,7 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
 
         partialTranscriptExecutor.submit(() -> {
             try {
-                String transcript = sttClient.transcribe(audio, contentType);
+                String transcript = sttClient.transcribe(audio, contentType).text();
                 if (transcript != null && !transcript.isBlank()) {
                     send(session, codec.partialTranscript(transcript));
                 }
@@ -204,7 +255,14 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
     }
 
     private void handleForceEnd(WebSocketSession session, UUID chatSessionId) throws IOException {
-        sessionService.endByUser(chatSessionId);
+        if (isMock(session)) {
+            // レポート生成は非同期でトリガーされる(結果は GET /api/sessions/{id}/report で取得する)。
+            // フロントは通常このWSメッセージとほぼ同時にREST側の /end も呼ぶため、二重トリガーに
+            // なりうるが MockSessionService.triggerReportGeneration は冪等なので安全。
+            mockSessionService.endByUser(chatSessionId);
+        } else {
+            sessionService.endByUser(chatSessionId);
+        }
         send(session, codec.sessionEnded("USER_ENDED"));
         session.close(CloseStatus.NORMAL);
     }
@@ -215,7 +273,7 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
      * これによりテキスト生成の完了を待たずに音声再生を始められ、
      * かつ1セッション内では文の送信順序が保たれる（直前の文の合成・送信完了後に次を開始）。
      */
-    private void runTurn(WebSocketSession session, UUID chatSessionId, String userText) {
+    private void runTurn(WebSocketSession session, UUID chatSessionId, String userText, SpeechMetrics speechMetrics) {
         StringBuilder ttsBuffer = new StringBuilder();
         AtomicReference<CompletableFuture<Void>> ttsChain =
                 new AtomicReference<>(CompletableFuture.completedFuture(null));
@@ -245,7 +303,82 @@ public class PracticeWebSocketHandler extends AbstractWebSocketHandler {
                 ttsChain.get().whenComplete((v, e) -> send(session, codec.assistantMessageEnd()));
             }
         };
-        turnService.handleUserTurn(chatSessionId, userText, listener);
+        turnService.handleUserTurn(chatSessionId, userText, speechMetrics, listener);
+    }
+
+    /** 本番模擬面接の冒頭、面接官から挨拶と最初の質問を発話させる。 */
+    private void runMockOpening(WebSocketSession session, UUID chatSessionId) {
+        mockTurnService.startInterview(chatSessionId, buildMockTurnListener(session, chatSessionId));
+    }
+
+    /** 本番模擬面接の1ターン(候補者の回答 → 面接官の応答)を処理する。 */
+    private void runMockTurn(WebSocketSession session, UUID chatSessionId, String userText) {
+        mockTurnService.handleUserTurn(chatSessionId, userText, buildMockTurnListener(session, chatSessionId));
+    }
+
+    /**
+     * 本番模擬面接用の{@link MockTurnListener}を組み立てる。TTSキューイングの仕組みは
+     * practice モードの{@code runTurn}と同じ({@link SentenceSplitter}で文単位に区切って
+     * {@link #queueTts}へ渡す)。質問の切り替わり・面接終了は、その時点までの音声送信
+     * ({@code ttsChain})が終わってからイベントを送る(音声が先、進捗更新は後)。
+     */
+    private MockTurnListener buildMockTurnListener(WebSocketSession session, UUID chatSessionId) {
+        StringBuilder ttsBuffer = new StringBuilder();
+        AtomicReference<CompletableFuture<Void>> ttsChain =
+                new AtomicReference<>(CompletableFuture.completedFuture(null));
+
+        return new MockTurnListener() {
+            @Override
+            public void onAssistantStart() {
+                send(session, codec.assistantMessageStart(MessageType.NORMAL));
+            }
+
+            @Override
+            public void onAssistantChunk(String textChunk) {
+                send(session, codec.assistantTextChunk(textChunk));
+
+                ttsBuffer.append(textChunk);
+                SentenceSplitter.Result result = SentenceSplitter.extract(ttsBuffer.toString());
+                if (!result.sentences().isEmpty()) {
+                    ttsBuffer.setLength(0);
+                    ttsBuffer.append(result.remainder());
+                    result.sentences().forEach(sentence -> queueTts(session, ttsChain, sentence));
+                }
+            }
+
+            @Override
+            public void onAssistantEnd(String fullContent) {
+                queueTts(session, ttsChain, ttsBuffer.toString());
+                ttsChain.get().whenComplete((v, e) -> send(session, codec.assistantMessageEnd()));
+            }
+
+            @Override
+            public void onQuestionAdvance(String nextQuestionText, int questionIndex, int totalQuestions) {
+                ttsChain.get().whenComplete((v, e) ->
+                        send(session, codec.mockQuestionAdvanced(nextQuestionText, questionIndex, totalQuestions)));
+            }
+
+            @Override
+            public void onInterviewEnd() {
+                ttsChain.get().whenComplete((v, e) -> {
+                    send(session, codec.sessionEnded("AI_JUDGED"));
+                    mockSessionService.triggerReportGeneration(chatSessionId).whenComplete((v2, e2) -> {
+                        send(session, codec.reportReady());
+                        closeQuietly(session);
+                    });
+                });
+            }
+        };
+    }
+
+    private void closeQuietly(WebSocketSession session) {
+        try {
+            if (session.isOpen()) {
+                session.close(CloseStatus.NORMAL);
+            }
+        } catch (IOException e) {
+            log.warn("WS クローズに失敗しました", e);
+        }
     }
 
     /**

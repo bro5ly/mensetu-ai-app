@@ -102,6 +102,23 @@ describe("PracticeSocket", () => {
     expect(onAssistantAudio).toHaveBeenCalledWith(blob);
   });
 
+  it("mock_question_advanced と report_ready を振り分ける(本番モードのみ)", () => {
+    const onMockQuestionAdvanced = vi.fn();
+    const onReportReady = vi.fn();
+    const { ws } = connect({ onMockQuestionAdvanced, onReportReady });
+
+    ws.emit(JSON.stringify({
+      type: "mock_question_advanced",
+      questionText: "志望動機を教えてください",
+      questionIndex: 2,
+      totalQuestions: 5,
+    }));
+    ws.emit(JSON.stringify({ type: "report_ready" }));
+
+    expect(onMockQuestionAdvanced).toHaveBeenCalledWith("志望動機を教えてください", 2, 5);
+    expect(onReportReady).toHaveBeenCalledTimes(1);
+  });
+
   it("不正なJSONは無視する", () => {
     const onError = vi.fn();
     const { ws } = connect({ onError });

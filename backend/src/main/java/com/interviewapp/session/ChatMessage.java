@@ -46,6 +46,14 @@ public class ChatMessage {
     @Column(name = "sequence_no", nullable = false)
     private int sequenceNo;
 
+    /**
+     * このメッセージがどの本番質問(mock_session_questions.display_order)への回答/深掘りだったか。
+     * MOCKモードでのみ設定する(PRACTICEでは常にnull)。本番終了後のレポート生成で、
+     * 質問ごとの回答をまとめて渡すために使う。
+     */
+    @Column(name = "question_order")
+    private Integer questionOrder;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -109,6 +109,53 @@ describe("api", () => {
     });
   });
 
+  it("本番セッション開始はquestionIdへPOSTする", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: "s1", questions: [] }));
+
+    await api.startMockSession("q1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/questions/q1/mock-sessions",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("本番セッション一覧はquestionIdでGETする", async () => {
+    fetchMock.mockResolvedValue(jsonResponse([{ id: "s1", score: 80 }]));
+
+    const sessions = await api.listMockSessions("q1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/questions/q1/mock-sessions",
+      expect.objectContaining({ headers: expect.any(Object) }),
+    );
+    expect(sessions).toHaveLength(1);
+  });
+
+  it("本番セッション終了はsessionIdへPOSTする", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ sessionId: "s1", status: "REPORT_PENDING" }));
+
+    const result = await api.endMockSession("s1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/sessions/s1/end",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(result.status).toBe("REPORT_PENDING");
+  });
+
+  it("本番レポート取得はsessionIdでGETする", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ sessionId: "s1", score: 80, feedbacks: [] }));
+
+    const report = await api.getMockReport("s1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/sessions/s1/report",
+      expect.objectContaining({ headers: expect.any(Object) }),
+    );
+    expect(report.score).toBe(80);
+  });
+
   it("204はundefinedを返す", async () => {
     fetchMock.mockResolvedValue({
       ok: true,

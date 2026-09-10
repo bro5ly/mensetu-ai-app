@@ -4,6 +4,8 @@ interface Props {
   chatState: ChatState;
   disabled: boolean;
   onClick: () => void;
+  /** "responding"時の文言だけ差し替えたい場合(本番モードでは「面接官」表記にする等)。 */
+  respondingLabel?: string;
 }
 
 const CAPTION: Record<ChatState, string> = {
@@ -13,8 +15,10 @@ const CAPTION: Record<ChatState, string> = {
   responding: "AIコーチが応答中...",
 };
 
-export function MicButton({ chatState, disabled, onClick }: Props) {
+export function MicButton({ chatState, disabled, onClick, respondingLabel }: Props) {
   const recording = chatState === "recording";
+  const caption =
+    chatState === "responding" && respondingLabel ? respondingLabel : CAPTION[chatState];
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -49,9 +53,7 @@ export function MicButton({ chatState, disabled, onClick }: Props) {
           )}
         </button>
       </div>
-      <span className="text-[12.5px] font-medium text-ink-soft">
-        {CAPTION[chatState]}
-      </span>
+      <span className="text-[12.5px] font-medium text-ink-soft">{caption}</span>
     </div>
   );
 }

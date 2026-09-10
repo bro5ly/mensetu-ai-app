@@ -8,7 +8,8 @@ public interface SttClient {
      *
      * @param audio       録音データ（WebM/Opus 等）
      * @param contentType 音声の MIME タイプ
-     * @return 文字起こし結果（空文字の場合あり）
+     * @return 文字起こし結果（テキストが空文字の場合あり）。タイムスタンプ情報が取れない
+     *         場合は {@link TranscriptionResult#durationSeconds()} が null になる
      */
-    String transcribe(byte[] audio, String contentType);
+    TranscriptionResult transcribe(byte[] audio, String contentType);
 }

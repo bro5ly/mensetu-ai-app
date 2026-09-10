@@ -44,4 +44,18 @@ class WsEventCodecTest {
         assertThat(codec.partialTranscript("学生時代に"))
                 .contains("\"type\":\"partial_transcript\"", "\"text\":\"学生時代に\"");
     }
+
+    @Test
+    void mockQuestionAdvancedのJSON形状() {
+        assertThat(codec.mockQuestionAdvanced("志望動機を教えてください", 2, 5))
+                .contains("\"type\":\"mock_question_advanced\"")
+                .contains("\"questionText\":\"志望動機を教えてください\"")
+                .contains("\"questionIndex\":2")
+                .contains("\"totalQuestions\":5");
+    }
+
+    @Test
+    void reportReadyのJSON形状() {
+        assertThat(codec.reportReady()).contains("\"type\":\"report_ready\"");
+    }
 }

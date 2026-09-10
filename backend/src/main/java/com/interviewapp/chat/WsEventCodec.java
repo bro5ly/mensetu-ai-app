@@ -61,6 +61,20 @@ public class WsEventCodec {
         return write(Map.of("type", WsProtocol.ERROR, "message", message));
     }
 
+    /** MOCKのみ。次の質問に進んだことを伝える(進捗表示の更新用)。questionIndex/totalQuestionsは1始まり。 */
+    public String mockQuestionAdvanced(String questionText, int questionIndex, int totalQuestions) {
+        return write(Map.of(
+                "type", WsProtocol.MOCK_QUESTION_ADVANCED,
+                "questionText", questionText,
+                "questionIndex", questionIndex,
+                "totalQuestions", totalQuestions));
+    }
+
+    /** MOCKのみ。バックグラウンド生成していたレポートの準備ができた。 */
+    public String reportReady() {
+        return write(Map.of("type", WsProtocol.REPORT_READY));
+    }
+
     private String write(Map<String, ?> fields) {
         try {
             return objectMapper.writeValueAsString(new LinkedHashMap<>(fields));

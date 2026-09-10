@@ -7,6 +7,7 @@ import com.interviewapp.company.CompanyRepository;
 import com.interviewapp.company.CompanySource;
 import com.interviewapp.company.CompanySourceService;
 import com.interviewapp.practice.AssistantMarkerParser.Result;
+import com.interviewapp.profile.UserProfileService;
 import com.interviewapp.question.InterviewQuestion;
 import com.interviewapp.question.InterviewQuestionRepository;
 import com.interviewapp.session.ChatMessage;
@@ -45,6 +46,7 @@ public class PracticeTurnService {
     private final PracticePromptFactory promptFactory;
     private final PracticeCoachLlm llm;
     private final AssistantMarkerParser markerParser;
+    private final UserProfileService userProfileService;
 
     public PracticeTurnService(ChatSessionRepository sessionRepository,
                                ChatMessageRepository messageRepository,
@@ -53,7 +55,8 @@ public class PracticeTurnService {
                                CompanySourceService companySourceService,
                                PracticePromptFactory promptFactory,
                                PracticeCoachLlm llm,
-                               AssistantMarkerParser markerParser) {
+                               AssistantMarkerParser markerParser,
+                               UserProfileService userProfileService) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.companyRepository = companyRepository;
@@ -62,6 +65,7 @@ public class PracticeTurnService {
         this.promptFactory = promptFactory;
         this.llm = llm;
         this.markerParser = markerParser;
+        this.userProfileService = userProfileService;
     }
 
     /**
@@ -69,6 +73,17 @@ public class PracticeTurnService {
      * ユーザー発話とコーチ応答の両方を {@code chat_messages} に保存する。
      */
     public ChatMessage handleUserTurn(UUID sessionId, String userText, PracticeTurnListener listener) {
+        return handleUserTurn(sessionId, userText, null, listener);
+    }
+
+    /**
+     * {@link #handleUserTurn(UUID, String, PracticeTurnListener)} に加え、音声発話であれば
+     * {@code speechMetrics}(話速・フィラーワード・間の分析結果、テキスト発話の場合は null)を渡せる。
+     * LLMへの入力にのみ話し方の参考情報として付記し(下記{@link #withSpeechNote}参照)、
+     * {@code chat_messages}への保存や会話履歴には影響しない(ユーザーには見せない)。
+     */
+    public ChatMessage handleUserTurn(
+            UUID sessionId, String userText, SpeechMetrics speechMetrics, PracticeTurnListener listener) {
         ChatSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new NotFoundException("セッションが見つかりません: " + sessionId));
         if (session.isEnded()) {
@@ -85,11 +100,26 @@ public class PracticeTurnService {
         messageRepository.save(new ChatMessage(sessionId, MessageRole.USER, userText, MessageType.NORMAL, nextSeq));
 
         String systemPrompt = buildSystemPrompt(session);
-        Result reply = streamReply(systemPrompt, promptFactory.toHistory(history), userText, listener);
+        String llmUserMessage = withSpeechNote(userText, speechMetrics);
+        Result reply = streamReply(systemPrompt, promptFactory.toHistory(history), llmUserMessage, listener);
 
         ChatMessage assistantMessage = new ChatMessage(
                 sessionId, MessageRole.ASSISTANT, reply.content(), reply.messageType(), nextSeq + 1);
         return messageRepository.save(assistantMessage);
+    }
+
+    /**
+     * 話し方の参考情報(音声の速さ・フィラーワード・間)があれば、LLMに渡すメッセージにだけ
+     * 付記する。目立った特徴が無ければ({@link SpeechMetricsAnalyzer#describe}がnullを返せば)
+     * 何も付けない。保存される {@code chat_messages.content} や画面表示にはこの注記を含めない
+     * (あくまでLLMへの裏側の参考情報)。
+     */
+    private static String withSpeechNote(String userText, SpeechMetrics speechMetrics) {
+        String note = SpeechMetricsAnalyzer.describe(speechMetrics);
+        if (note == null) {
+            return userText;
+        }
+        return userText + "\n\n[話し方の参考情報(システムが自動計測。ユーザー自身の発言ではない)]: " + note;
     }
 
     private String buildSystemPrompt(ChatSession session) {
@@ -106,7 +136,8 @@ public class PracticeTurnService {
                         .map(CompanySource::getContent)
                         .toList();
 
-        return promptFactory.systemPrompt(companyName, companyOverview, sourceExcerpts, questionText);
+        String candidateProfile = userProfileService.getResumeTextOrNull();
+        return promptFactory.systemPrompt(companyName, companyOverview, sourceExcerpts, questionText, candidateProfile);
     }
 
     /**

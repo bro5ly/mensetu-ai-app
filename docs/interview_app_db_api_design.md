@@ -2,9 +2,9 @@
 
 これまでの会話で決まった要件をもとにした設計です。
 
-- サイドバーは「会社」直下に具体的な質問（練習チャット）が並び、会社ごとに1つ「本番模擬面接」がある
+- サイドバーは「会社」直下に具体的な質問（練習チャット）が並ぶ。本番模擬面接は質問ごとに独立した一問一答形式で、各質問のチャット画面から「本番を開始」できる（当初は会社ごとに1つの通し会話だったが、計量モデルでは通しの会話進行が難しいと判断し作り替えた。詳細はCLAUDE.md参照）
 - 本番は複数回挑戦できる（スコア推移を見られるように）
-- 練習モードは終了時にレポート不要（軽いサマリーのみ任意）。AIの応答は「通常の深掘り」と「アドバイス・回答例」の2種類をUI側で区別して表示する
+- 練習モードは「回答を一緒に練り上げる相談役」に特化（面接官風の連続した深掘り質問はしない＝本番モードとの差別化）。終了時にレポート不要（軽いサマリーのみ任意）。AIの応答は「通常のやり取り」と「アドバイス・回答例」の2種類をUI側で区別して表示する
 - 本番モードは終了時に「点数・質問ごとの具体的フィードバック・回答の傾向分析」を生成
 - 本番の集計は終了後にバックグラウンドで1回のLLM呼び出しにまとめて行う（並列評価はしない）
 - 音声ファイルは保存しない。STTでテキスト化した結果のみを保持する（確定事項）
@@ -23,6 +23,7 @@ companies 1─N interview_questions
 companies 1─N chat_sessions（mode=MOCK のときは question_id が NULL）
 interview_questions 1─N chat_sessions（mode=PRACTICE、通常は質問ごとに1つを使い回す）
 chat_sessions 1─N chat_messages
+chat_sessions 1─N mock_session_questions（mode=MOCK。対象の質問1件をそのままコピーしたもの。一問一答形式のため常に1件）
 chat_sessions 1─0..1 mock_interview_reports（mode=MOCK かつ終了後のみ）
 mock_interview_reports 1─N mock_question_feedbacks
 ```
@@ -36,6 +37,11 @@ CREATE TABLE companies (
     name              VARCHAR(255) NOT NULL,
     overview          TEXT,                    -- 企業リサーチで取得した概要
     culture_keywords  TEXT[],                   -- 社風キーワード
+    is_generic        BOOLEAN NOT NULL DEFAULT false, -- 会社に紐づかない「汎用的な質問」を表す
+                                                       -- 特別な会社(固定UUIDで1行だけ、V7で作成)かどうか。
+                                                       -- 通常の会社一覧には含めない。質問バンクの
+                                                       -- SELF_PR/EXPERIENCE/JOB_AXISのみを複製する
+                                                       -- (MOTIVATION/REVERSE_QUESTIONはV8で除外)
     created_at        TIMESTAMP NOT NULL DEFAULT now(),
     updated_at        TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -70,17 +76,19 @@ CREATE TABLE interview_questions (
 
 -- チャットセッション（練習 or 本番）
 CREATE TABLE chat_sessions (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id    UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    question_id   UUID REFERENCES interview_questions(id) ON DELETE SET NULL, -- MOCKはNULL
-    mode          VARCHAR(10) NOT NULL CHECK (mode IN ('PRACTICE','MOCK')),
-    status        VARCHAR(15) NOT NULL DEFAULT 'READY'
-                  CHECK (status IN ('READY','IN_PROGRESS','ENDED')),
-    ended_reason  VARCHAR(15) CHECK (ended_reason IN ('USER_ENDED','AI_JUDGED')), -- MOCKのみ使用
-    light_summary TEXT,                         -- PRACTICE用の軽いサマリー（任意）
-    started_at    TIMESTAMP,
-    ended_at      TIMESTAMP,
-    created_at    TIMESTAMP NOT NULL DEFAULT now()
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id                  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    question_id                 UUID REFERENCES interview_questions(id) ON DELETE SET NULL, -- MOCKはNULL
+    mode                        VARCHAR(10) NOT NULL CHECK (mode IN ('PRACTICE','MOCK')),
+    status                      VARCHAR(15) NOT NULL DEFAULT 'READY'
+                                CHECK (status IN ('READY','IN_PROGRESS','ENDED')),
+    ended_reason                VARCHAR(15) CHECK (ended_reason IN ('USER_ENDED','AI_JUDGED')), -- MOCKのみ使用
+    light_summary               TEXT,                -- PRACTICE用の軽いサマリー（任意）
+    current_question_order      INT NOT NULL DEFAULT 0, -- MOCKのみ。今取り組んでいる質問のdisplay_order
+    current_question_followups  INT NOT NULL DEFAULT 0, -- MOCKのみ。今の質問でのフォローアップ回数
+    started_at                  TIMESTAMP,
+    ended_at                    TIMESTAMP,
+    created_at                  TIMESTAMP NOT NULL DEFAULT now()
 );
 
 -- 会話メッセージ（音声は保存せず、STTでテキスト化した結果のみを保存）
@@ -92,7 +100,21 @@ CREATE TABLE chat_messages (
     message_type  VARCHAR(10) NOT NULL DEFAULT 'NORMAL'
                   CHECK (message_type IN ('NORMAL','ADVICE')), -- PRACTICEのASSISTANT応答のみ意味を持つ。それ以外は常にNORMAL
     sequence_no   INT NOT NULL,
+    question_order INT,                         -- MOCKのみ。どのmock_session_questions.display_orderへの
+                                                  -- 回答/深掘りだったか(レポート生成時のグルーピング用)。PRACTICEは常にNULL
     created_at    TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- 本番セッションが対象とする質問(会社に紐づく静的なinterview_questionsとは別テーブルだが、
+-- 一問一答形式のため、セッション開始時に対象のinterview_questions1件をそのままコピーするだけ。
+-- display_orderは常に0、LLM呼び出しは無い)
+CREATE TABLE mock_session_questions (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id        UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    question_text     TEXT NOT NULL,
+    internal_category VARCHAR(50),
+    display_order     INT NOT NULL,
+    created_at        TIMESTAMP NOT NULL DEFAULT now()
 );
 
 -- 本番模擬面接のレポート（本番1回＝1レコード。複数回挑戦できるので session ごとに作られる）
@@ -126,6 +148,17 @@ CREATE TABLE question_bank_entries (
     created_at        TIMESTAMP NOT NULL DEFAULT now()
 );
 
+-- ユーザープロフィール(履歴書のような参考情報。実装は V6__add_user_profile.sql)
+-- ローカル単一ユーザー前提でログイン・複数ユーザーの概念は持たず、常に高々1行しか使わない
+-- (作成日時が最も古い1行を使う)。練習・本番モードのプロンプトに「候補者情報」として
+-- 渡し、質問の話題選びの参考にする(あくまで参考。実際の質問はその場の会話が中心)。
+CREATE TABLE user_profile (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    resume_text TEXT,
+    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMP NOT NULL DEFAULT now()
+);
+
 -- インデックス
 CREATE INDEX idx_question_bank_category ON question_bank_entries(internal_category);
 CREATE INDEX idx_steps_company     ON company_interview_steps(company_id);
@@ -135,6 +168,7 @@ CREATE INDEX idx_sessions_company  ON chat_sessions(company_id);
 CREATE INDEX idx_sessions_question ON chat_sessions(question_id);
 CREATE INDEX idx_messages_session  ON chat_messages(session_id, sequence_no);
 CREATE INDEX idx_feedbacks_report  ON mock_question_feedbacks(report_id, sequence_no);
+CREATE INDEX idx_mock_session_questions_session ON mock_session_questions(session_id, display_order);
 ```
 
 ### 補足：Spring AIのChatMemoryとの関係
@@ -154,7 +188,8 @@ REST（CRUD・企業リサーチ・レポート取得）＋ WebSocket（リア�
 | POST     | `/api/companies/research`               | 会社名(＋任意で現在の下書き・フィードバック)から Web 検索＋LLM要約で企業概要の下書きを返す（未保存）。Web 検索は `WebSearchClient` 抽象の背後の SearXNG(自己ホスト)実装。結果は `{ overview, sources }`（`sources` はユーザー提供＋自動検索で見つかった最終的なソース一覧） |
 | POST     | `/api/companies/generate-questions`     | 確認済みの `{ name, overview }` から面接想定質問を 3 件生成して返す（未保存、`{ questions: string[] }`） |
 | POST     | `/api/companies`                        | 会社を作成。`{ name, overview?, questions?: string[] }` を受け取り、`questions` があれば会社作成と同時に一括登録する（ウィザードの最終ステップ）  |
-| GET      | `/api/companies`                        | 会社一覧取得（サイドバー表示用）                                                              |
+| GET      | `/api/companies`                        | 会社一覧取得（サイドバー表示用。`is_generic=true`の会社は含めない）                             |
+| GET      | `/api/companies/generic`                | 会社に紐づかない「汎用的な質問」の詳細取得（サイドバーの会社セクションの上に表示）                |
 | GET      | `/api/companies/{companyId}`            | 会社詳細（プロフィール＋質問一覧）取得                                                        |
 | PATCH    | `/api/companies/{companyId}`            | 会社プロフィールを編集                                                                       |
 | DELETE   | `/api/companies/{companyId}`            | 会社を削除                                                                                   |
@@ -177,11 +212,20 @@ REST（CRUD・企業リサーチ・レポート取得）＋ WebSocket（リア�
 | メソッド | パス                                           | 説明                                                                                                                                                                                              |
 | -------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | POST     | `/api/questions/{questionId}/practice-session` | 練習セッションを開始（既存があれば再開して返す）                                                                                                                                                  |
-| POST     | `/api/companies/{companyId}/mock-sessions`     | 新しい本番セッションを開始（複数回挑戦可）                                                                                                                                                        |
-| GET      | `/api/companies/{companyId}/mock-sessions`     | 過去の本番セッション一覧（スコア推移表示用、レポート要約付き）                                                                                                                                    |
+| POST     | `/api/questions/{questionId}/mock-sessions`    | 新しい本番セッションを開始（複数回挑戦可）。対象の質問をそのままコピーするだけでLLM呼び出しは無い（一問一答形式、下記参照）                                                                        |
+| GET      | `/api/questions/{questionId}/mock-sessions`    | その質問の過去の本番セッション一覧（スコア推移表示用、レポート要約付き）                                                                                                                          |
 | GET      | `/api/sessions/{sessionId}`                    | セッション詳細＋メッセージ履歴取得                                                                                                                                                                |
 | POST     | `/api/sessions/{sessionId}/end`                | セッションを終了（ユーザー強制終了）。**PRACTICE**は同期的に軽いサマリー(`messageCount`, `lightSummary`)を200で返す。**MOCK**はレポート生成を非同期トリガーし202を返す(結果は`GET /report`で取得) |
 | GET      | `/api/sessions/{sessionId}/report`             | 本番レポート取得（生成完了後のみ200、未完了は404 or `status: PENDING`）                                                                                                                           |
+
+### ユーザープロフィール関連
+
+ローカル単一ユーザー前提のためIDを指定しない（常に唯一の行を対象にする）。
+
+| メソッド | パス            | 説明                                                                 |
+| -------- | --------------- | -------------------------------------------------------------------- |
+| GET      | `/api/profile`  | ユーザープロフィール取得（未登録なら`resumeText: ""`を返す）         |
+| PUT      | `/api/profile`  | ユーザープロフィールを更新（無ければ新規作成するupsert）             |
 
 ### WebSocket（音声・テキストのリアルタイムやり取り）
 
@@ -205,11 +249,14 @@ REST（CRUD・企業リサーチ・レポート取得）＋ WebSocket（リア�
 | `assistant_audio_chunk`（binary） | TTS生成音声チャンク                                                   |
 | `assistant_message_end`           | AI応答の完了通知。UIはここで「処理中」表示を消し、吹き出しを確定する  |
 | `session_ended`                   | セッション終了通知（`reason: AI_JUDGED \| USER_ENDED`）               |
-| `report_ready`                    | （MOCKのみ）レポート生成完了通知。フロントは`GET /report`を叩きに行く |
+| `mock_question_advanced`          | （MOCKのみ）次の質問に進んだ通知。`questionText`/`questionIndex`/`totalQuestions`を含む |
+| `report_ready`                    | （MOCKのみ）レポート生成完了通知。フロントは`GET /report`を叩きに行く。AI判断による終了(`AI_JUDGED`)ではこのイベントの送信後に接続を閉じる |
 
 **メッセージ種別（`NORMAL` / `ADVICE`）の判定方法**
 
-練習モードでLLMがアドバイス・回答例を出す場合のみ、応答冒頭に`<<ADVICE>>`マーカーを付けさせる。バックエンドはストリーミング開始直後にこのマーカーの有無だけをチェックして`assistant_message_start`の`messageType`に載せ、マーカー自体は本文から取り除いてから`assistant_text_chunk`として流す。本番モードの終了判定（`<<INTERVIEW_END>>`）と同じ「マーカー方式」に統一している。
+練習モードでLLMがアドバイス・回答例を出す場合のみ、応答冒頭に`<<ADVICE>>`マーカーを付けさせる。バックエンドはストリーミング開始直後にこのマーカーの有無だけをチェックして`assistant_message_start`の`messageType`に載せ、マーカー自体は本文から取り除いてから`assistant_text_chunk`として流す。
+
+本番モードは計量(小型)ローカルモデルでは通しの会話進行が難しいと判断し、**質問ごとに独立した一問一答形式**に作り替えた(当初の通し会話形式は廃止)。質問の提示・切り替えは常にコード側が`mock_session_questions`の文面をそのまま送る(LLM呼び出しなし、挨拶・相槌・つなぎの生成をしない)。LLMに任せるのは、今の質問について深掘りを続けるか十分かを判断しながら深掘りの質問を1つずつ重ねることだけで、渡す会話履歴も常に「今の質問」に属するやり取りだけに絞り込む(他の質問の内容には一切触れない)。深掘りが十分だとLLMが判断したら、応答全体を`<<QUESTION_DONE>>`マーカーだけにして返す(他の文章は書かせない)。マーカーを検出したら次の質問があればその文面をそのまま送り、無ければ固定の締めくくり文言を送って面接を終える(次の質問があるかどうかはコード側で確定的に判定するため、モデルは「この質問が十分か」だけを判断すればよい)。フォローアップ(深掘り)回数には上限があり、AIが自分で判断しなくても一定回数で強制的に次の質問へ進む(この場合もLLMは呼ばない)。
 
 ---
 

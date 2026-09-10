@@ -13,6 +13,10 @@ export interface PracticeSocketHandlers {
   onError?: (message: string) => void;
   onOpen?: () => void;
   onClose?: (event: CloseEvent) => void;
+  /** 本番モードのみ。次の質問に進んだ(questionIndex/totalQuestionsは1始まり)。 */
+  onMockQuestionAdvanced?: (questionText: string, questionIndex: number, totalQuestions: number) => void;
+  /** 本番モードのみ。セッション終了後、バックグラウンド生成していたレポートの準備ができた。 */
+  onReportReady?: () => void;
 }
 
 interface InboundEvent {
@@ -21,11 +25,16 @@ interface InboundEvent {
   messageType?: MessageType;
   reason?: string;
   message?: string;
+  questionText?: string;
+  questionIndex?: number;
+  totalQuestions?: number;
 }
 
 /**
- * 練習モードの WebSocket ({@code /ws/sessions/{sessionId}}) を扱うクライアント。
- * バックエンドのイベント種別をコールバックに振り分ける。
+ * 練習モード・本番モード共通の WebSocket ({@code /ws/sessions/{sessionId}}) を扱うクライアント。
+ * バックエンドは`chat_sessions.mode`で振る舞いを分けるだけで同じエンドポイント・プロトコルを
+ * 使うため、クライアント側もこの1クラスで両モードを扱う(本番固有のイベントは
+ * `onMockQuestionAdvanced`/`onReportReady`)。
  */
 export class PracticeSocket {
   private ws: WebSocket | null = null;
@@ -81,6 +90,16 @@ export class PracticeSocket {
         break;
       case "error":
         this.handlers.onError?.(event.message ?? "エラーが発生しました");
+        break;
+      case "mock_question_advanced":
+        this.handlers.onMockQuestionAdvanced?.(
+          event.questionText ?? "",
+          event.questionIndex ?? 0,
+          event.totalQuestions ?? 0,
+        );
+        break;
+      case "report_ready":
+        this.handlers.onReportReady?.();
         break;
     }
   }

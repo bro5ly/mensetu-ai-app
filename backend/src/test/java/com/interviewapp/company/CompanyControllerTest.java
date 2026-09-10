@@ -56,6 +56,19 @@ class CompanyControllerTest {
     }
 
     @Test
+    void 汎用的な質問の詳細を返す() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(companyService.getGeneric()).thenReturn(
+                new CompanyDetail(id, "汎用的な質問", null, Instant.now(), Instant.now(),
+                        List.of(), List.of()));
+
+        mockMvc.perform(get("/api/companies/generic"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id.toString()))
+                .andExpect(jsonPath("$.name").value("汎用的な質問"));
+    }
+
+    @Test
     void 存在しない会社詳細は404() throws Exception {
         when(companyService.get(any())).thenThrow(new NotFoundException("会社が見つかりません"));
 
@@ -179,4 +192,5 @@ class CompanyControllerTest {
                         .content("{\"urls\":[]}"))
                 .andExpect(status().isBadRequest());
     }
+
 }

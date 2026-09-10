@@ -5,12 +5,17 @@ import type {
   CompanySummary,
   FetchedSourcePreview,
   GeneratedQuestions,
+  MockEndResponse,
+  MockReportResponse,
+  MockSessionStartResponse,
+  MockSessionSummary,
   PracticeEndResponse,
   PracticeSessionResponse,
   QuestionResponse,
   ResearchDraft,
   SessionDetail,
   SourceResponse,
+  UserProfileResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -52,6 +57,9 @@ export const api = {
 
   getCompany: (companyId: string) =>
     request<CompanyDetail>(`/api/companies/${companyId}`),
+
+  /** 会社に紐づかない「汎用的な質問」。サイドバーの「会社」セクションの上に表示する。 */
+  getGenericQuestions: () => request<CompanyDetail>("/api/companies/generic"),
 
   createCompany: (input: {
     name: string;
@@ -129,5 +137,29 @@ export const api = {
   endSession: (sessionId: string) =>
     request<PracticeEndResponse>(`/api/sessions/${sessionId}/end`, {
       method: "POST",
+    }),
+
+  startMockSession: (questionId: string) =>
+    request<MockSessionStartResponse>(`/api/questions/${questionId}/mock-sessions`, {
+      method: "POST",
+    }),
+
+  listMockSessions: (questionId: string) =>
+    request<MockSessionSummary[]>(`/api/questions/${questionId}/mock-sessions`),
+
+  /** MOCKセッションの強制終了。202が返り、レポート生成は非同期(getMockReportで取得)。 */
+  endMockSession: (sessionId: string) =>
+    request<MockEndResponse>(`/api/sessions/${sessionId}/end`, { method: "POST" }),
+
+  /** レポートが未準備(生成中含む)の間は404(ApiErrorのstatus=404)になる。 */
+  getMockReport: (sessionId: string) =>
+    request<MockReportResponse>(`/api/sessions/${sessionId}/report`),
+
+  getUserProfile: () => request<UserProfileResponse>("/api/profile"),
+
+  updateUserProfile: (resumeText: string) =>
+    request<UserProfileResponse>("/api/profile", {
+      method: "PUT",
+      body: JSON.stringify({ resumeText }),
     }),
 };

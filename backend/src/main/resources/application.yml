@@ -42,7 +42,7 @@ spring:
           # 日本語の自然さを優先し、既定モデルは qwen3.5:4b。Docker上でCPU動作させる等
           # メモリに余裕がない環境では OLLAMA_MODEL を qwen3.5:2b/0.8b に落とす。
           # GPUに余裕があれば qwen3.5:9b に上げてもよい。
-          model: ${OLLAMA_MODEL:qwen3.5:4b}
+          model: ${OLLAMA_MODEL:qwen3.5:9b}
 
 server:
   port: ${SERVER_PORT:8080}

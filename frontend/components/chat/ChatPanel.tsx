@@ -23,6 +23,7 @@ interface Props {
   onEnd: () => void;
   onDeleteQuestion: () => void;
   onDismissError: () => void;
+  onStartMock: () => void;
 }
 
 export function ChatPanel({
@@ -39,6 +40,7 @@ export function ChatPanel({
   onEnd,
   onDeleteQuestion,
   onDismissError,
+  onStartMock,
 }: Props) {
   const busy = chatState === "processing" || chatState === "responding";
   const recording = chatState === "recording";
@@ -176,6 +178,19 @@ export function ChatPanel({
                 </div>
               )}
             </div>
+
+            <button
+              type="button"
+              title="この質問で本番模擬面接を始める"
+              onClick={onStartMock}
+              className="flex items-center gap-1.5 rounded-[20px] border border-accent bg-white px-3.5 py-2 text-[12.5px] font-semibold text-accent transition hover:bg-accent-surface"
+            >
+              <span
+                aria-hidden
+                className="ml-0.5 h-0 w-0 border-y-[5px] border-l-[8px] border-y-transparent border-l-accent"
+              />
+              本番を開始
+            </button>
 
             <button
               type="button"

@@ -11,6 +11,7 @@ import com.interviewapp.common.ConflictException;
 import com.interviewapp.company.Company;
 import com.interviewapp.company.CompanyRepository;
 import com.interviewapp.company.CompanySourceService;
+import com.interviewapp.profile.UserProfileService;
 import com.interviewapp.question.InterviewQuestion;
 import com.interviewapp.question.InterviewQuestionRepository;
 import com.interviewapp.session.ChatMessage;
@@ -45,6 +46,8 @@ class PracticeTurnServiceTest {
     private InterviewQuestionRepository questionRepository;
     @Mock
     private CompanySourceService companySourceService;
+    @Mock
+    private UserProfileService userProfileService;
 
     private PracticeTurnService service;
     private final UUID sessionId = UUID.randomUUID();
@@ -82,7 +85,7 @@ class PracticeTurnServiceTest {
         PracticeCoachLlm llm = (systemPrompt, history, userMessage) -> Flux.fromIterable(llmChunks);
         service = new PracticeTurnService(sessionRepository, messageRepository, companyRepository,
                 questionRepository, companySourceService, new PracticePromptFactory(), llm,
-                new AssistantMarkerParser());
+                new AssistantMarkerParser(), userProfileService);
 
         lenient().when(companyRepository.findById(companyId)).thenReturn(Optional.of(new Company("ABC社", null)));
         lenient().when(questionRepository.findById(questionId))
@@ -179,7 +182,7 @@ class PracticeTurnServiceTest {
         };
         PracticeTurnService recordingService = new PracticeTurnService(sessionRepository, messageRepository,
                 companyRepository, questionRepository, companySourceService, new PracticePromptFactory(),
-                recordingLlm, new AssistantMarkerParser());
+                recordingLlm, new AssistantMarkerParser(), userProfileService);
 
         recordingService.handleUserTurn(sessionId, "私の強みは継続力です", new RecordingListener());
 
@@ -189,13 +192,57 @@ class PracticeTurnServiceTest {
     }
 
     @Test
+    void 話速の分析結果はLLMへの入力にだけ付記され保存内容には影響しない() {
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(readySession()));
+        List<String> capturedUserMessages = new ArrayList<>();
+        PracticeCoachLlm recordingLlm = (systemPrompt, history, userMessage) -> {
+            capturedUserMessages.add(userMessage);
+            return Flux.fromIterable(List.of("いいですね"));
+        };
+        PracticeTurnService recordingService = new PracticeTurnService(sessionRepository, messageRepository,
+                companyRepository, questionRepository, companySourceService, new PracticePromptFactory(),
+                recordingLlm, new AssistantMarkerParser(), userProfileService);
+        SpeechMetrics fastAndFilled =
+                SpeechMetricsAnalyzer.analyze("えーとえーと学生時代の話です", 1.2, 0.0);
+
+        recordingService.handleUserTurn(sessionId, "えーとえーと学生時代の話です", fastAndFilled, new RecordingListener());
+
+        assertThat(capturedUserMessages).hasSize(1);
+        assertThat(capturedUserMessages.get(0))
+                .contains("[話し方の参考情報")
+                .contains("速さがやや速め");
+
+        ArgumentCaptor<ChatMessage> saved = ArgumentCaptor.forClass(ChatMessage.class);
+        verify(messageRepository, org.mockito.Mockito.times(2)).save(saved.capture());
+        assertThat(saved.getAllValues().get(0).getContent()).isEqualTo("えーとえーと学生時代の話です");
+    }
+
+    @Test
+    void 話し方の特徴が無ければLLMへの入力に注記を付けない() {
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(readySession()));
+        List<String> capturedUserMessages = new ArrayList<>();
+        PracticeCoachLlm recordingLlm = (systemPrompt, history, userMessage) -> {
+            capturedUserMessages.add(userMessage);
+            return Flux.fromIterable(List.of("いいですね"));
+        };
+        PracticeTurnService recordingService = new PracticeTurnService(sessionRepository, messageRepository,
+                companyRepository, questionRepository, companySourceService, new PracticePromptFactory(),
+                recordingLlm, new AssistantMarkerParser(), userProfileService);
+        SpeechMetrics normal = SpeechMetricsAnalyzer.analyze("がくせいじだいのはなしです", 2.0, 0.0);
+
+        recordingService.handleUserTurn(sessionId, "学生時代の話です", normal, new RecordingListener());
+
+        assertThat(capturedUserMessages).containsExactly("学生時代の話です");
+    }
+
+    @Test
     void LLMが失敗するとPracticeCoachExceptionが伝播しアシスタント発話は保存されない() {
         when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(readySession()));
         PracticeCoachLlm failing = (systemPrompt, history, userMessage) ->
                 Flux.error(new PracticeCoachException("AI サーバー(Ollama)に接続できませんでした。", null));
         PracticeTurnService failingService = new PracticeTurnService(sessionRepository, messageRepository,
                 companyRepository, questionRepository, companySourceService, new PracticePromptFactory(), failing,
-                new AssistantMarkerParser());
+                new AssistantMarkerParser(), userProfileService);
 
         assertThatThrownBy(() ->
                 failingService.handleUserTurn(sessionId, "IT業界に興味があります", new RecordingListener()))

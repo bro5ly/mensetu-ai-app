@@ -61,6 +61,12 @@ public class CompanyController {
         return companyService.get(companyId);
     }
 
+    /** 会社に紐づかない「汎用的な質問」の詳細。サイドバーの「会社」セクションの上に表示する。 */
+    @GetMapping("/generic")
+    public CompanyDetail getGeneric() {
+        return companyService.getGeneric();
+    }
+
     @PostMapping
     public ResponseEntity<CompanyDetail> create(@Valid @RequestBody CreateCompanyRequest request) {
         CompanyDetail created = companyService.create(request);

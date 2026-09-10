@@ -36,7 +36,7 @@ public class CompanyService {
 
     @Transactional(readOnly = true)
     public List<CompanySummary> list() {
-        return companyRepository.findAllByOrderByCreatedAtAsc().stream()
+        return companyRepository.findByGenericFalseOrderByCreatedAtAsc().stream()
                 .map(CompanySummary::from)
                 .toList();
     }
@@ -46,6 +46,19 @@ public class CompanyService {
         Company company = findOrThrow(companyId);
         return CompanyDetail.from(company, questionService.listByCompany(companyId),
                 companySourceService.listSources(companyId));
+    }
+
+    /**
+     * 「汎用的な質問」の詳細(質問一覧のみ、ソースは常に空)。会社に紐づかない練習・本番の対象
+     * ({@code V7__add_generic_question_set.sql}参照)。通常の会社一覧には含めず専用に取得する。
+     */
+    @Transactional(readOnly = true)
+    public CompanyDetail getGeneric() {
+        Company company = companyRepository.findByGenericTrue()
+                .orElseThrow(() -> new IllegalStateException(
+                        "汎用的な質問の会社が見つかりません(マイグレーションが未適用の可能性があります)"));
+        return CompanyDetail.from(company, questionService.listByCompany(company.getId()),
+                companySourceService.listSources(company.getId()));
     }
 
     public CompanyDetail create(CreateCompanyRequest request) {
@@ -91,6 +104,9 @@ public class CompanyService {
 
     public void delete(UUID companyId) {
         Company company = findOrThrow(companyId);
+        if (company.isGeneric()) {
+            throw new IllegalArgumentException("汎用的な質問は削除できません: " + companyId);
+        }
         companyRepository.delete(company);
     }
 

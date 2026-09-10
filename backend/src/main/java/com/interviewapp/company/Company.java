@@ -35,6 +35,15 @@ public class Company {
     @Column(columnDefinition = "text")
     private String overview;
 
+    /**
+     * 会社に紐づかない「汎用的な質問」を表す特別な会社かどうか。既存の質問バンク
+     * (question_bank_entries)を複製した1行だけがtrueになる({@code V7__add_generic_question_set.sql}
+     * 参照)。practice/mockの既存の仕組みをそのまま再利用するための特別扱いで、通常の会社一覧
+     * ({@code CompanyService#list}) からは除外し、専用の {@code GET /api/companies/generic} で取得する。
+     */
+    @Column(name = "is_generic", nullable = false)
+    private boolean generic;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

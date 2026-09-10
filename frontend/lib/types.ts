@@ -118,3 +118,59 @@ export interface ChatMessage {
   content: string;
   streaming: boolean;
 }
+
+/** 本番模擬面接: 対象の質問(常に1件)。既存のinterview_questionsの文面をそのままコピーしたもの。 */
+export interface MockFlowQuestion {
+  questionText: string;
+  internalCategory: string | null;
+  displayOrder: number;
+}
+
+/** 本番模擬面接セッション開始のレスポンス(対象の質問を含む)。 */
+export interface MockSessionStartResponse {
+  id: string;
+  companyId: string;
+  status: SessionStatus;
+  questions: MockFlowQuestion[];
+  createdAt: string;
+}
+
+/** 過去の本番セッション一覧の1件(スコア推移表示用)。レポート未生成ならscoreはnull。 */
+export interface MockSessionSummary {
+  id: string;
+  status: SessionStatus;
+  endedReason: "USER_ENDED" | "AI_JUDGED" | null;
+  score: number | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+}
+
+/** 本番モードのユーザー強制終了レスポンス(レポートは非同期生成のため未確定)。 */
+export interface MockEndResponse {
+  sessionId: string;
+  status: string;
+}
+
+/** 本番レポート内の質問ごとの具体的フィードバック。 */
+export interface MockQuestionFeedback {
+  questionText: string;
+  userAnswerSummary: string | null;
+  feedback: string;
+  sequenceNo: number;
+}
+
+/** 本番模擬面接のレポート。 */
+export interface MockReportResponse {
+  sessionId: string;
+  score: number;
+  answerTendencyAnalysis: string;
+  feedbacks: MockQuestionFeedback[];
+  createdAt: string | null;
+}
+
+/** ユーザープロフィール(履歴書のような、面接練習・本番の質問生成/深掘りで参考にする情報)。 */
+export interface UserProfileResponse {
+  resumeText: string;
+  updatedAt: string | null;
+}

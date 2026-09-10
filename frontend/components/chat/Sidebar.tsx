@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
 import { AddCompanyWizard } from "./AddCompanyWizard";
+import { UserSettingsModal } from "./UserSettingsModal";
 import type { CompanyDetail, QuestionResponse, SourceResponse } from "@/lib/types";
 
 interface Props {
@@ -20,11 +21,13 @@ export function Sidebar({
   reloadSignal = 0,
 }: Props) {
   const [companies, setCompanies] = useState<CompanyDetail[]>([]);
+  const [generic, setGeneric] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const [showWizard, setShowWizard] = useState(false);
+  const [showUserSettings, setShowUserSettings] = useState(false);
   const [addQuestionFor, setAddQuestionFor] = useState<CompanyDetail | null>(
     null,
   );
@@ -55,13 +58,19 @@ export function Sidebar({
     } finally {
       setLoading(false);
     }
+    try {
+      setGeneric(await api.getGenericQuestions());
+    } catch {
+      // 汎用的な質問は付加的な表示のため、失敗しても会社一覧の表示は妨げない
+      setGeneric(null);
+    }
   }, []);
 
   useEffect(() => {
     void load();
   }, [load, reloadSignal]);
 
-  const toggleCompany = (id: string) =>
+  const toggleSection = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -83,13 +92,17 @@ export function Sidebar({
     if (!company || !text) return;
     try {
       const created = await api.addQuestion(company.id, text);
-      setCompanies((prev) =>
-        prev.map((c) =>
-          c.id === company.id
-            ? { ...c, questions: [...c.questions, created] }
-            : c,
-        ),
-      );
+      if (generic && company.id === generic.id) {
+        setGeneric({ ...generic, questions: [...generic.questions, created] });
+      } else {
+        setCompanies((prev) =>
+          prev.map((c) =>
+            c.id === company.id
+              ? { ...c, questions: [...c.questions, created] }
+              : c,
+          ),
+        );
+      }
       setQuestionText("");
       setAddQuestionFor(null);
     } catch (e) {
@@ -171,13 +184,92 @@ export function Sidebar({
           <button
             type="button"
             onClick={() => setShowWizard(true)}
-            className="mx-3 mb-4 flex w-[calc(100%-24px)] items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13.5px] font-semibold text-ink transition hover:bg-panel-hover"
+            className="mx-3 mb-1 flex w-[calc(100%-24px)] items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13.5px] font-semibold text-ink transition hover:bg-panel-hover"
           >
             <span className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-[7px] border border-line bg-white text-[15px] text-accent">
               +
             </span>
             <span>会社を追加</span>
           </button>
+
+          {generic && (
+            <div className="mb-3">
+              <div className="flex items-center gap-2 py-1 pl-5 pr-4">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(generic.id)}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left"
+                  aria-expanded={!collapsed.has(generic.id)}
+                >
+                  <span className="truncate text-[10px] font-bold uppercase tracking-[0.06em] text-ink-faint">
+                    汎用的な質問
+                  </span>
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 10 10"
+                    className={`flex-shrink-0 text-ink-soft transition-transform ${
+                      collapsed.has(generic.id) ? "-rotate-90" : ""
+                    }`}
+                    aria-hidden
+                  >
+                    <path
+                      d="M1 3l4 4 4-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  title="質問を追加"
+                  onClick={() => {
+                    setQuestionText("");
+                    setAddQuestionFor(generic);
+                  }}
+                  className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-[17px] leading-none text-ink-soft hover:text-accent"
+                >
+                  +
+                </button>
+              </div>
+
+              {!collapsed.has(generic.id) && (
+                <>
+                  {generic.questions.map((q) => {
+                    const active = activeQuestionId === q.id;
+                    return (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => onSelectQuestion(q, generic.name)}
+                        className={`my-px flex w-full items-baseline gap-2 py-2 pl-6 pr-5 text-left text-[12.5px] leading-[1.4] transition ${
+                          active
+                            ? "bg-accent-surface font-semibold text-accent-ink"
+                            : "font-normal text-ink-soft hover:bg-panel-hover"
+                        }`}
+                      >
+                        <span
+                          className={`mt-1.5 h-1 w-1 flex-shrink-0 rounded-full ${
+                            active ? "bg-accent" : "bg-[oklch(0.75_0.01_60)]"
+                          }`}
+                        />
+                        <span>{q.questionText}</span>
+                      </button>
+                    );
+                  })}
+
+                  {generic.questions.length === 0 && (
+                    <p className="py-1.5 pl-6 pr-5 text-[12px] text-ink-faint">
+                      質問がまだありません
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           <div className="px-5 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-[0.06em] text-ink-faint">
             会社
@@ -212,7 +304,7 @@ export function Sidebar({
                   </span>
                   <button
                     type="button"
-                    onClick={() => toggleCompany(company.id)}
+                    onClick={() => toggleSection(company.id)}
                     className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left"
                     aria-expanded={isOpen}
                   >
@@ -316,6 +408,7 @@ export function Sidebar({
           <button
             type="button"
             title="設定"
+            onClick={() => setShowUserSettings(true)}
             className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full transition hover:bg-panel-hover"
           >
             <svg
@@ -470,6 +563,10 @@ export function Sidebar({
             閉じる
           </button>
         </Modal>
+      )}
+
+      {showUserSettings && (
+        <UserSettingsModal onClose={() => setShowUserSettings(false)} />
       )}
     </>
   );

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,6 +29,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
@@ -168,7 +170,8 @@ class PracticeWebSocketHandlerIntegrationTest {
 
     @Test
     void 音声発話ではSTT結果がtranscriptとして返る() throws Exception {
-        when(sttClient.transcribe(any(), any())).thenReturn("アルバイトで新人教育を担当していました");
+        when(sttClient.transcribe(any(), any()))
+                .thenReturn(TranscriptionResult.textOnly("アルバイトで新人教育を担当していました"));
         when(llm.streamReply(any(), any(), any())).thenReturn(Flux.just("いいですね。"));
         when(ttsClient.createAudioQuery(any(), anyInt())).thenReturn("{}");
         when(ttsClient.synthesizeFromQuery(any(), anyInt())).thenReturn(new byte[0]);
@@ -191,10 +194,57 @@ class PracticeWebSocketHandlerIntegrationTest {
     }
 
     @Test
+    void 話速等の分析結果はLLMへの入力にだけ付記されユーザーへの表示には出ない() throws Exception {
+        // 短時間(1.2秒)に対して文字数が多く、フィラーワードを含み、区間の間隔も長い
+        // → 話速はFAST、フィラー2回、間2.1秒 いずれも「言及すべき特徴あり」の分析結果になる。
+        String spokenText = "えーとえーと学生時代の話です";
+        TranscriptionResult sttResult = new TranscriptionResult(spokenText, 1.2, List.of(
+                new TranscriptionResult.Segment(0.0, 0.5),
+                new TranscriptionResult.Segment(2.6, 3.0)));
+        when(sttClient.transcribe(any(), any())).thenReturn(sttResult);
+        when(llm.streamReply(any(), any(), any())).thenReturn(Flux.just("いいですね。"));
+        when(ttsClient.createAudioQuery(any(), anyInt())).thenReturn("{}");
+        when(ttsClient.synthesizeFromQuery(any(), anyInt())).thenReturn(new byte[0]);
+
+        StandardWebSocketClient client = new StandardWebSocketClient();
+        CollectingHandler handler = new CollectingHandler();
+        WebSocketSession ws = client.execute(handler,
+                "ws://localhost:" + port + "/ws/sessions/" + sessionId).get();
+
+        ws.sendMessage(new BinaryMessage(new byte[] {10, 20, 30}));
+        ws.sendMessage(new TextMessage("{\"type\":\"end_turn\"}"));
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(types(handler)).contains("assistant_message_end"));
+
+        // ユーザーに見える transcript イベントには注記が含まれない(発話そのままのテキスト)。
+        assertThat(handler.textFrames.stream().filter(f -> typeOf(f).equals("transcript")))
+                .anySatisfy(f -> assertThat(f).contains(spokenText));
+        assertThat(handler.textFrames.stream().filter(f -> typeOf(f).equals("transcript")))
+                .noneSatisfy(f -> assertThat(f).contains("話し方の参考情報"));
+
+        // LLMへの入力(userMessage)には注記が付記されている。
+        ArgumentCaptor<String> userMessageCaptor = ArgumentCaptor.forClass(String.class);
+        verify(llm).streamReply(any(), any(), userMessageCaptor.capture());
+        assertThat(userMessageCaptor.getValue())
+                .startsWith(spokenText)
+                .contains("[話し方の参考情報")
+                .contains("速さがやや速め")
+                .contains("つなぎ言葉が2回")
+                .contains("間があった");
+
+        // 保存される chat_messages.content にも注記は含まれない。
+        List<ChatMessage> saved = messageRepository.findBySessionIdOrderBySequenceNoAsc(sessionId);
+        assertThat(saved.get(0).getContent()).isEqualTo(spokenText);
+
+        ws.close();
+    }
+
+    @Test
     void 録音中のプレビュー文字起こしはバッファをリセットせず本番の文字起こしに影響しない() throws Exception {
         when(sttClient.transcribe(any(), any()))
-                .thenReturn("学生時代に")
-                .thenReturn("学生時代に力を入れたことです");
+                .thenReturn(TranscriptionResult.textOnly("学生時代に"))
+                .thenReturn(TranscriptionResult.textOnly("学生時代に力を入れたことです"));
         when(llm.streamReply(any(), any(), any())).thenReturn(Flux.just("いいですね。"));
         when(ttsClient.createAudioQuery(any(), anyInt())).thenReturn("{}");
         when(ttsClient.synthesizeFromQuery(any(), anyInt())).thenReturn(new byte[0]);

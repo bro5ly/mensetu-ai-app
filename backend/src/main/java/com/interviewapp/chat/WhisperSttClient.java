@@ -1,5 +1,7 @@
 package com.interviewapp.chat;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +21,12 @@ import org.springframework.web.client.RestClient;
  * 無音区間が混ざりがちで、無音/低音量区間をWhisperにそのまま渡すと、直前の学習データから
  * 全く無関係なフレーズ(例:「スタッフを見ることができます」)を繰り返し「幻覚」する既知の
  * 問題があるため、VAD(音声区間検出)で無音部分を除去してから文字起こしさせる。</p>
+ *
+ * <p>{@code response_format=verbose_json} を使う。話速・間(ポーズ)の検知
+ * ({@link SpeechMetricsAnalyzer}参照)に使う発話全体の長さ({@code duration})と
+ * 発話区間({@code segments}、VAD後の区間の開始/終了秒)を得るため。
+ * サーバーが対応していない/フィールドが無い場合は null・空リストとして扱う
+ * (話速等の分析がスキップされるだけで、通常の文字起こし自体は従来通り動く)。</p>
  */
 @Component
 public class WhisperSttClient implements SttClient {
@@ -36,9 +44,9 @@ public class WhisperSttClient implements SttClient {
     }
 
     @Override
-    public String transcribe(byte[] audio, String contentType) {
+    public TranscriptionResult transcribe(byte[] audio, String contentType) {
         if (audio == null || audio.length == 0) {
-            return "";
+            return TranscriptionResult.empty();
         }
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
@@ -50,7 +58,7 @@ public class WhisperSttClient implements SttClient {
         });
         body.add("model", model);
         body.add("language", "ja");
-        body.add("response_format", "json");
+        body.add("response_format", "verbose_json");
         body.add("vad_filter", "true");
 
         try {
@@ -61,15 +69,42 @@ public class WhisperSttClient implements SttClient {
                     .retrieve()
                     .body(Map.class);
 
-            Object text = response == null ? null : response.get("text");
-            return text == null ? "" : text.toString().trim();
+            return parseResult(response);
         } catch (RuntimeException e) {
             // VADが音声区間を1つも検出できなかった場合など、サーバー側がエラーを返すことがある。
             // 呼び出し元は空文字を「音声を認識できませんでした」として自然に扱えるため、
             // ここで例外を握りつぶして処理を継続する。
             log.warn("音声の文字起こしに失敗しました（無音のみ等の可能性）: {}", e.getMessage());
-            return "";
+            return TranscriptionResult.empty();
         }
+    }
+
+    private static TranscriptionResult parseResult(Map<?, ?> response) {
+        if (response == null) {
+            return TranscriptionResult.empty();
+        }
+        Object text = response.get("text");
+        String trimmedText = text == null ? "" : text.toString().trim();
+
+        Double duration = toDouble(response.get("duration"));
+
+        List<TranscriptionResult.Segment> segments = new ArrayList<>();
+        if (response.get("segments") instanceof List<?> rawSegments) {
+            for (Object item : rawSegments) {
+                if (item instanceof Map<?, ?> segment) {
+                    Double start = toDouble(segment.get("start"));
+                    Double end = toDouble(segment.get("end"));
+                    if (start != null && end != null) {
+                        segments.add(new TranscriptionResult.Segment(start, end));
+                    }
+                }
+            }
+        }
+        return new TranscriptionResult(trimmedText, duration, segments);
+    }
+
+    private static Double toDouble(Object value) {
+        return value instanceof Number n ? n.doubleValue() : null;
     }
 
     private static String extensionFor(String contentType) {

@@ -32,7 +32,11 @@ const active: ActiveQuestion = {
 
 function renderPanel(
   messages: ChatMessage[] = [],
-  options: { chatState?: "idle" | "recording" | "processing" | "responding"; partialTranscript?: string } = {},
+  options: {
+    chatState?: "idle" | "recording" | "processing" | "responding";
+    partialTranscript?: string;
+    onStartMock?: () => void;
+  } = {},
 ) {
   return render(
     <ChatPanel
@@ -49,12 +53,24 @@ function renderPanel(
       onEnd={() => {}}
       onDeleteQuestion={() => {}}
       onDismissError={() => {}}
+      onStartMock={options.onStartMock ?? (() => {})}
     />,
   );
 }
 
 beforeEach(() => {
   listSources.mockReset();
+});
+
+describe("ChatPanel の本番開始導線", () => {
+  it("本番を開始を押すとonStartMockが呼ばれる", () => {
+    const onStartMock = vi.fn();
+    renderPanel([], { onStartMock });
+
+    fireEvent.click(screen.getByRole("button", { name: /本番を開始/ }));
+
+    expect(onStartMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("ChatPanel の参照ソース表示", () => {
